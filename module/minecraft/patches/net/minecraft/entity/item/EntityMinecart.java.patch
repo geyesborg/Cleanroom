@@ -223,7 +223,23 @@
              int[][] aint = MATRIX[blockrailbase$enumraildirection.getMetadata()];
              double d0 = i + 0.5 + aint[0][0] * 0.5;
              double d1 = j + 0.0625 + aint[0][1] * 0.5;
-@@ -708,6 +735,11 @@
+@@ -687,6 +714,7 @@
+             }
+ 
+             int i = compound.getInteger("DisplayData");
++            if (compound.hasKey("DisplayState", 10)) this.setDisplayTile(net.minecraft.nbt.NBTUtil.readBlockState(compound.getCompoundTag("DisplayState"))); else // Cleanroom
+             this.setDisplayTile(block == null ? Blocks.AIR.getDefaultState() : block.getStateFromMeta(i));
+             this.setDisplayTileOffset(compound.getInteger("DisplayOffset"));
+         }
+@@ -701,6 +729,7 @@
+             ResourceLocation resourcelocation = Block.REGISTRY.getNameForObject(iblockstate.getBlock());
+             compound.setString("DisplayTile", resourcelocation == null ? "" : resourcelocation.toString());
+             compound.setInteger("DisplayData", iblockstate.getBlock().getMetaFromState(iblockstate));
++            compound.setTag("DisplayState", net.minecraft.nbt.NBTUtil.writeBlockState(new NBTTagCompound(), iblockstate)); // Cleanroom: by name, any block id or state
+             compound.setInteger("DisplayOffset", this.getDisplayTileOffset());
+         }
+     }
+@@ -708,6 +737,11 @@
      /** Applies a velocity to the entities, to push them away from eachother. */
      @Override
      public void applyEntityCollision(Entity entityIn) {
@@ -235,7 +251,7 @@
          if (!this.world.isRemote) {
              if (!entityIn.noClip && !this.noClip) {
                  if (!this.isPassenger(entityIn)) {
-@@ -748,15 +780,14 @@
+@@ -748,15 +782,14 @@
  
                              double d7 = entityIn.motionX + this.motionX;
                              double d8 = entityIn.motionZ + this.motionZ;
@@ -254,7 +270,7 @@
                                  entityIn.motionX *= 0.2F;
                                  entityIn.motionZ *= 0.2F;
                                  entityIn.addVelocity(this.motionX + d0, 0.0, this.motionZ + d1);
-@@ -877,6 +908,203 @@
+@@ -877,6 +910,203 @@
          this.getDataManager().set(SHOW_BLOCK, showBlock);
      }
  

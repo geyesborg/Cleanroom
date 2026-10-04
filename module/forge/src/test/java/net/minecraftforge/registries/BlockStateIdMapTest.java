@@ -58,10 +58,19 @@ public class BlockStateIdMapTest
             IBlockState state = expected.get(i);
             assertSame(state, Block.BLOCK_STATE_IDS.getByValue(i), "state at " + i);
             assertEquals(i, Block.BLOCK_STATE_IDS.get(state), "number of " + state);
-            assertEquals(i, Block.getStateId(state));
-            assertSame(state, Block.getStateById(i));
         }
-        assertEquals(0, Block.getStateId(Blocks.AIR.getDefaultState()), "air keeps 0, the value of an empty ChunkPrimer");
+        assertEquals(0, Block.BLOCK_STATE_IDS.get(Blocks.AIR.getDefaultState()), "air keeps 0, the value of an empty ChunkPrimer");
+    }
+
+    @Test
+    public void stateIdsRoundTripAndKeepTheOldEncodingWhereItFits()
+    {
+        for (IBlockState state : expectedOrder())
+            assertSame(state, Block.getStateById(Block.getStateId(state)), String.valueOf(state));
+        // Mods send the block id alone as a meta-0 state (world event 2001)
+        assertEquals(Block.getIdFromBlock(Blocks.GRASS), Block.getStateId(Blocks.GRASS.getDefaultState()));
+        assertSame(Blocks.WATER.getDefaultState(), Block.getStateById(Block.getIdFromBlock(Blocks.WATER)));
+        assertEquals(Block.getIdFromBlock(Blocks.WOOL) + (14 << 12), Block.getStateId(Blocks.WOOL.getStateFromMeta(14)));
     }
 
     @Test

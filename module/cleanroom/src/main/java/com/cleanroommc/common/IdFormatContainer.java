@@ -5,6 +5,12 @@ import com.google.common.eventbus.Subscribe;
 import net.minecraftforge.fml.common.DummyModContainer;
 import net.minecraftforge.fml.common.LoadController;
 import net.minecraftforge.fml.common.ModMetadata;
+import net.minecraftforge.fml.common.WorldAccessContainer;
+import net.minecraftforge.fml.common.ZipperUtil;
+import net.minecraft.nbt.NBTBase;
+import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.world.storage.SaveHandler;
+import net.minecraft.world.storage.WorldInfo;
 import net.minecraftforge.fml.common.event.FMLConstructionEvent;
 import net.minecraftforge.fml.common.network.NetworkCheckHandler;
 import net.minecraftforge.fml.common.network.NetworkRegistry;
@@ -12,6 +18,9 @@ import net.minecraftforge.fml.relauncher.Side;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.io.File;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Map;
 
 /**
@@ -19,8 +28,11 @@ import java.util.Map;
  * item and potion formats. The version is the format number; the FML handshake compares it in both directions,
  * so a client and server with different formats (or without this container) refuse each other at login instead of
  * misreading chunk and packet data.
+ * <p>
+ * Worlds record the format in level.dat. A world saved before it (or by an older format) is backed up with Forge's
+ * world backup before it is opened, because chunks are rewritten in the new format as they are saved.
  */
-public class IdFormatContainer extends DummyModContainer {
+public class IdFormatContainer extends DummyModContainer implements WorldAccessContainer {
     public static final String MOD_ID = "cleanroom_ids";
     public static final String FORMAT = "1";
     private static final Logger LOGGER = LogManager.getLogger("Cleanroom");
@@ -58,6 +70,53 @@ public class IdFormatContainer extends DummyModContainer {
         }
         LOGGER.error("Cleanroom ID format mismatch: this side uses format {}, the {} uses {}.", FORMAT,
                 remoteSide == Side.SERVER ? "server" : "client", remote == null ? "none (vanilla, Forge or an older Cleanroom)" : "format " + remote);
+        return false;
+    }
+
+    @Override
+    public NBTTagCompound getDataForWriting(SaveHandler handler, WorldInfo info) {
+        NBTTagCompound tag = new NBTTagCompound();
+        tag.setString("Format", FORMAT);
+        return tag;
+    }
+
+    @Override
+    public void readData(SaveHandler handler, WorldInfo info, Map<String, NBTBase> propertyMap, NBTTagCompound tag) {
+        String saved = tag.getString("Format");
+        if (FORMAT.equals(saved)) {
+            return;
+        }
+        File world = handler.getWorldDirectory();
+        if (!saved.isEmpty() && Integer.parseInt(saved) > Integer.parseInt(FORMAT)) {
+            throw new IllegalStateException("World " + world.getName() + " was saved with Cleanroom ID format " + saved
+                    + "; this Cleanroom reads format " + FORMAT + " and older.");
+        }
+        if (!hasChunks(world)) {
+            return;
+        }
+        LOGGER.info("World {} was saved before Cleanroom ID format {}: its chunks are converted as they are saved.", world.getName(), FORMAT);
+        if ("true".equals(System.getProperty("fml.doNotBackup"))) {
+            LOGGER.warn("fml.doNotBackup is set: converting world {} without a backup.", world.getName());
+            return;
+        }
+        try {
+            ZipperUtil.backupWorld(world.getName());
+        } catch (IOException e) {
+            throw new UncheckedIOException("Could not back up world " + world.getName() + " before converting it to Cleanroom ID format " + FORMAT + ".", e);
+        }
+    }
+
+    private static boolean hasChunks(File world) {
+        File[] dirs = world.listFiles(File::isDirectory);
+        if (dirs == null) {
+            return false;
+        }
+        for (File dir : dirs) {
+            File[] regions = (dir.getName().equals("region") ? dir : new File(dir, "region")).listFiles((d, name) -> name.endsWith(".mca"));
+            if (regions != null && regions.length > 0) {
+                return true;
+            }
+        }
         return false;
     }
 }

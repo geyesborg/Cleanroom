@@ -103,8 +103,8 @@ public class GameData
     public static final ResourceLocation PROFESSIONS  = new ResourceLocation("minecraft:villagerprofessions");
     public static final ResourceLocation SERIALIZERS  = new ResourceLocation("minecraft:dataserializers");
 
-    private static final int MAX_BLOCK_ID = 4095;
-    private static final int MIN_ITEM_ID = MAX_BLOCK_ID + 1;
+    private static final int MAX_BLOCK_ID = Integer.MAX_VALUE >> 5; // Cleanroom: chunks save block names, packets use varints (was 4095: 12 bits in Anvil sections)
+    private static final int MIN_ITEM_ID = 4096; // first id for items without a block id (vanilla item blocks reuse their block's id)
     private static final int MAX_ITEM_ID = 31999;
     private static final int MAX_POTION_ID = 255; // SPacketEntityEffect sends bytes, we can only use 255
     private static final int MAX_BIOME_ID = 255; // Maximum number in a byte in the chunk

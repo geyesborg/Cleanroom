@@ -1,0 +1,14 @@
+--- original/net/minecraft/nbt/NBTTagLongArray.java
++++ modified/net/minecraft/nbt/NBTTagLongArray.java
+@@ -16,6 +16,11 @@
+         this.data = p_i47524_1_;
+     }
+ 
++    /** Cleanroom: the backing array (vanilla 1.12 has no getter) */
++    public long[] getLongArray() {
++        return this.data;
++    }
++
+     public NBTTagLongArray(List<Long> p_i47525_1_) {
+         this(toArray(p_i47525_1_));
+     }

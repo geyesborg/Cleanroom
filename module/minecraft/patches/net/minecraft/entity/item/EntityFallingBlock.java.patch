@@ -28,3 +28,22 @@
                                      TileEntity tileentity = this.world.getTileEntity(blockpos1);
                                      if (tileentity != null) {
                                          NBTTagCompound nbttagcompound = tileentity.writeToNBT(new NBTTagCompound());
+@@ -237,6 +239,7 @@
+         ResourceLocation resourcelocation = Block.REGISTRY.getNameForObject(block);
+         compound.setString("Block", resourcelocation == null ? "" : resourcelocation.toString());
+         compound.setByte("Data", (byte)block.getMetaFromState(this.fallTile));
++        if (this.fallTile != null) compound.setTag("BlockState", net.minecraft.nbt.NBTUtil.writeBlockState(new NBTTagCompound(), this.fallTile)); // Cleanroom: every state, not only meta-expressible ones
+         compound.setInteger("Time", this.fallTime);
+         compound.setBoolean("DropItem", this.shouldDropItem);
+         compound.setBoolean("HurtEntities", this.hurtEntities);
+@@ -251,7 +254,9 @@
+     @Override
+     protected void readEntityFromNBT(NBTTagCompound compound) {
+         int i = compound.getByte("Data") & 255;
+-        if (compound.hasKey("Block", 8)) {
++        if (compound.hasKey("BlockState", 10)) {
++            this.fallTile = net.minecraft.nbt.NBTUtil.readBlockState(compound.getCompoundTag("BlockState"));
++        } else if (compound.hasKey("Block", 8)) {
+             this.fallTile = Block.getBlockFromName(compound.getString("Block")).getStateFromMeta(i);
+         } else if (compound.hasKey("TileID", 99)) {
+             this.fallTile = Block.getBlockById(compound.getInteger("TileID")).getStateFromMeta(i);
