@@ -157,15 +157,16 @@
  
                  nbttagcompound.setByteArray("BlockLight", extendedblockstorage.getBlockLight().getData());
                  if (flag) {
-@@ -268,6 +309,7 @@
+@@ -268,17 +309,24 @@
          }
  
          compound.setTag("Sections", nbttaglist);
+-        compound.setByteArray("Biomes", chunkIn.getBiomeArray());
 +        compound.setTag(com.cleanroommc.ids.SectionBlockFormat.CHUNK_PALETTE, blockPalette.toNBT()); // Cleanroom
-         compound.setByteArray("Biomes", chunkIn.getBiomeArray());
++        chunkIn.getBiomeIds().writeNBT(compound); // Cleanroom: biome names (BiomePalette/BiomeIndices) instead of id bytes
          chunkIn.setHasEntities(false);
          NBTTagList nbttaglist1 = new NBTTagList();
-@@ -275,10 +317,16 @@
+ 
          for (int i = 0; i < chunkIn.getEntityLists().length; i++) {
              for (Entity entity : chunkIn.getEntityLists()[i]) {
                  NBTTagCompound nbttagcompound2 = new NBTTagCompound();
@@ -232,14 +233,18 @@
              extendedblockstorage.setBlockLight(new NibbleArray(nbttagcompound.getByteArray("BlockLight")));
              if (flag) {
                  extendedblockstorage.setSkyLight(new NibbleArray(nbttagcompound.getByteArray("SkyLight")));
-@@ -348,6 +414,15 @@
-             chunk.setBiomeArray(compound.getByteArray("Biomes"));
+@@ -344,10 +410,17 @@
          }
  
+         chunk.setStorageArrays(aextendedblockstorage);
+-        if (compound.hasKey("Biomes", 7)) {
+-            chunk.setBiomeArray(compound.getByteArray("Biomes"));
++        chunk.getBiomeIds().readNBT(compound); // Cleanroom: either format
++
 +        if (chunk.getCapabilities() != null && compound.hasKey("ForgeCaps")) {
 +            chunk.getCapabilities().deserializeNBT(compound.getCompoundTag("ForgeCaps"));
-+        }
-+
+         }
+ 
 +        // End this method here and split off entity loading to another method
 +        return chunk;
 +    }
@@ -248,7 +253,7 @@
          NBTTagList nbttaglist1 = compound.getTagList("Entities", 10);
  
          for (int j1 = 0; j1 < nbttaglist1.tagCount(); j1++) {
-@@ -386,8 +461,6 @@
+@@ -386,8 +459,6 @@
                  );
              }
          }
@@ -257,7 +262,7 @@
      }
  
      @Nullable
-@@ -481,4 +554,8 @@
+@@ -481,4 +552,8 @@
  
          return entity;
      }

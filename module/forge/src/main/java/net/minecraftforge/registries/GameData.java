@@ -69,6 +69,7 @@ import com.google.common.collect.BiMap;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.IdentityHashMap;
@@ -107,7 +108,7 @@ public class GameData
     private static final int MIN_ITEM_ID = 4096; // first id for items without a block id (vanilla item blocks reuse their block's id)
     private static final int MAX_ITEM_ID = 31999;
     private static final int MAX_POTION_ID = 255; // SPacketEntityEffect sends bytes, we can only use 255
-    private static final int MAX_BIOME_ID = 255; // Maximum number in a byte in the chunk
+    private static final int MAX_BIOME_ID = Integer.MAX_VALUE >> 5; // Cleanroom: chunks save biome names, packets use varints (was 255: a byte per column)
     private static final int MAX_SOUND_ID = Integer.MAX_VALUE >> 5; // Varint (SPacketSoundEffect)
     private static final int MAX_POTIONTYPE_ID = Integer.MAX_VALUE >> 5; // Int (SPacketEffect)
     private static final int MAX_ENCHANTMENT_ID = Short.MAX_VALUE - 1; // Short - serialized as a short in ItemStack NBTs.
@@ -144,7 +145,7 @@ public class GameData
         makeRegistry(BLOCKS,       Block.class,       MAX_BLOCK_ID, new ResourceLocation("air")).addCallback(BlockCallbacks.INSTANCE).create();
         makeRegistry(ITEMS,        Item.class,        MIN_ITEM_ID, MAX_ITEM_ID).addCallback(ItemCallbacks.INSTANCE).create();
         makeRegistry(POTIONS,      Potion.class,      MAX_POTION_ID).create();
-        makeRegistry(BIOMES,       Biome.class,       MAX_BIOME_ID).create();
+        makeRegistry(BIOMES,       Biome.class,       MAX_BIOME_ID).addCallback(BiomeCallbacks.INSTANCE).create();
         makeRegistry(SOUNDEVENTS,  SoundEvent.class,  MAX_SOUND_ID).create();
         makeRegistry(POTIONTYPES,  PotionType.class,  MAX_POTIONTYPE_ID, new ResourceLocation("empty")).create();
         makeRegistry(ENCHANTMENTS, Enchantment.class, MAX_ENCHANTMENT_ID).create();
@@ -425,6 +426,49 @@ public class GameData
             private BlockDummyAir()
             {
             }
+        }
+    }
+
+    @Nullable
+    private static volatile int[][] biomeIdsByLowByte;
+
+    /**
+     * Ids of the active biome registry whose low byte is {@code lowByte}, ascending: the biomes a byte written into
+     * {@code Chunk.getBiomeArray()} can mean (one, until there are more than 256 biomes).
+     */
+    public static int[] getBiomeIdsWithLowByte(int lowByte)
+    {
+        int[][] table = biomeIdsByLowByte;
+        if (table == null)
+        {
+            List<List<Integer>> lists = new ArrayList<>(256);
+            for (int i = 0; i < 256; i++)
+                lists.add(new ArrayList<>());
+            ForgeRegistry<Biome> biomes = RegistryManager.ACTIVE.getRegistry(BIOMES);
+            for (Biome biome : biomes)
+                lists.get(biomes.getID(biome) & 0xFF).add(biomes.getID(biome));
+            table = new int[256][];
+            for (int i = 0; i < 256; i++)
+                table[i] = lists.get(i).stream().mapToInt(Integer::intValue).sorted().toArray();
+            biomeIdsByLowByte = table;
+        }
+        return table[lowByte & 0xFF];
+    }
+
+    private static class BiomeCallbacks implements IForgeRegistry.AddCallback<Biome>, IForgeRegistry.ClearCallback<Biome>
+    {
+        static final BiomeCallbacks INSTANCE = new BiomeCallbacks();
+
+        @Override
+        public void onAdd(IForgeRegistryInternal<Biome> owner, RegistryManager stage, int id, Biome obj, @Nullable Biome oldObj)
+        {
+            biomeIdsByLowByte = null;
+        }
+
+        @Override
+        public void onClear(IForgeRegistryInternal<Biome> owner, RegistryManager stage)
+        {
+            biomeIdsByLowByte = null;
         }
     }
 

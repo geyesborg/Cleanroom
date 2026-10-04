@@ -1,6 +1,6 @@
 --- original/net/minecraft/world/chunk/Chunk.java
 +++ modified/net/minecraft/world/chunk/Chunk.java
-@@ -41,7 +41,7 @@
+@@ -41,13 +41,14 @@
  import org.apache.logging.log4j.LogManager;
  import org.apache.logging.log4j.Logger;
  
@@ -9,15 +9,23 @@
      private static final Logger LOGGER = LogManager.getLogger();
      public static final ExtendedBlockStorage NULL_BLOCK_STORAGE = null;
      /** Used to store block IDs, block MSBs, Sky-light maps, Block-light maps, and metadata. Each entry corresponds to a logical segment of 16x16x16 blocks, stacked vertically. */
-@@ -99,6 +99,7 @@
+     private final ExtendedBlockStorage[] storageArrays = new ExtendedBlockStorage[16];
+     /** Contains a 16x16 mapping on the X/Z plane of the biome ID to which each colum belongs. */
+     private final byte[] blockBiomeArray = new byte[256];
++    private final com.cleanroommc.ids.ChunkBiomes biomeIds; // Cleanroom: full biome ids; blockBiomeArray is their low-byte view
+     /** A map, similar to heightMap, that tracks how far down precipitation can fall. */
+     private final int[] precipitationHeightMap = new int[256];
+     /** Which columns need their skylightMaps updated. */
+@@ -99,6 +100,8 @@
  
          Arrays.fill(this.precipitationHeightMap, -999);
          Arrays.fill(this.blockBiomeArray, (byte)-1);
++        this.biomeIds = new com.cleanroommc.ids.ChunkBiomes(this, this.blockBiomeArray);
 +        capabilities = net.minecraftforge.event.ForgeEventFactory.gatherCapabilities(this);
      }
  
      public Chunk(World worldIn, ChunkPrimer primer, int x, int z) {
-@@ -171,7 +172,8 @@
+@@ -171,7 +174,8 @@
  
                  for (int l = i + 16; l > 0; l--) {
                      IBlockState iblockstate = this.getBlockState(j, l - 1, k);
@@ -27,7 +35,7 @@
                          this.heightMap[k << 4 | j] = l;
                          if (l < this.heightMapMinimum) {
                              this.heightMapMinimum = l;
-@@ -378,11 +380,12 @@
+@@ -378,11 +382,12 @@
      }
  
      public int getBlockLightOpacity(BlockPos pos) {
@@ -42,7 +50,7 @@
      }
  
      public IBlockState getBlockState(BlockPos pos) {
-@@ -430,86 +433,91 @@
+@@ -430,86 +435,91 @@
          int j = pos.getY();
          int k = pos.getZ() & 15;
          int l = k << 4 | i;
@@ -191,7 +199,7 @@
      }
  
      public int getLightFor(EnumSkyBlock type, BlockPos pos) {
-@@ -587,11 +595,13 @@
+@@ -587,11 +597,13 @@
              k = this.entityLists.length - 1;
          }
  
@@ -205,7 +213,7 @@
      }
  
      /** removes entity using its y chunk coordinate as its index */
-@@ -610,6 +620,7 @@
+@@ -610,6 +622,7 @@
          }
  
          this.entityLists[index].remove(entityIn);
@@ -213,7 +221,7 @@
      }
  
      public boolean canSeeSky(BlockPos pos) {
-@@ -623,24 +634,27 @@
+@@ -623,24 +636,27 @@
      private TileEntity createNewTileEntity(BlockPos pos) {
          IBlockState iblockstate = this.getBlockState(pos);
          Block block = iblockstate.getBlock();
@@ -248,7 +256,7 @@
          }
  
          return tileentity;
-@@ -654,9 +668,11 @@
+@@ -654,9 +670,11 @@
      }
  
      public void addTileEntity(BlockPos pos, TileEntity tileEntityIn) {
@@ -261,7 +269,7 @@
              if (this.tileEntities.containsKey(pos)) {
                  this.tileEntities.get(pos).invalidate();
              }
-@@ -681,12 +697,14 @@
+@@ -681,12 +699,14 @@
          this.world.addTileEntities(this.tileEntities.values());
  
          for (ClassInheritanceMultiMap<Entity> classinheritancemultimap : this.entityLists) {
@@ -277,7 +285,7 @@
          this.loaded = false;
  
          for (TileEntity tileentity : this.tileEntities.values()) {
-@@ -696,6 +714,7 @@
+@@ -696,6 +716,7 @@
          for (ClassInheritanceMultiMap<Entity> classinheritancemultimap : this.entityLists) {
              this.world.unloadEntities(classinheritancemultimap);
          }
@@ -285,7 +293,7 @@
      }
  
      /** Sets the isModified flag for this Chunk */
-@@ -705,8 +724,8 @@
+@@ -705,8 +726,8 @@
  
      /** Fills the given list of all entities that intersect within the given bounding box that aren't the passed entity. */
      public void getEntitiesWithinAABBForEntity(@Nullable Entity entityIn, AxisAlignedBB aabb, List<Entity> listToFill, Predicate<? super Entity> filter) {
@@ -296,7 +304,7 @@
          i = MathHelper.clamp(i, 0, this.entityLists.length - 1);
          j = MathHelper.clamp(j, 0, this.entityLists.length - 1);
  
-@@ -739,8 +758,8 @@
+@@ -739,8 +760,8 @@
      public <T extends Entity> void getEntitiesOfTypeWithinAABB(
          Class<? extends T> entityClass, AxisAlignedBB aabb, List<T> listToFill, Predicate<? super T> filter
      ) {
@@ -307,7 +315,7 @@
          i = MathHelper.clamp(i, 0, this.entityLists.length - 1);
          j = MathHelper.clamp(j, 0, this.entityLists.length - 1);
  
-@@ -807,6 +826,9 @@
+@@ -807,6 +828,9 @@
      }
  
      protected void populate(IChunkGenerator generator) {
@@ -317,7 +325,7 @@
          if (this.isTerrainPopulated()) {
              if (generator.generateStructures(this, this.x, this.z)) {
                  this.markDirty();
-@@ -814,8 +836,10 @@
+@@ -814,8 +838,10 @@
          } else {
              this.checkLight();
              generator.populate(this.x, this.z);
@@ -328,7 +336,7 @@
      }
  
      public BlockPos getPrecipitationHeight(BlockPos pos) {
-@@ -856,7 +880,8 @@
+@@ -856,7 +882,8 @@
  
          while (!this.tileEntityPosQueue.isEmpty()) {
              BlockPos blockpos = this.tileEntityPosQueue.poll();
@@ -338,7 +346,7 @@
                  TileEntity tileentity = this.createNewTileEntity(blockpos);
                  this.world.setTileEntity(blockpos, tileentity);
                  this.world.markBlockRangeForRenderUpdate(blockpos, blockpos);
-@@ -912,6 +937,12 @@
+@@ -912,6 +939,12 @@
       */
      @SideOnly(Side.CLIENT)
      public void read(PacketBuffer buf, int availableSections, boolean groundUpContinuous) {
@@ -351,7 +359,20 @@
          boolean flag = this.world.provider.hasSkyLight();
  
          for (int i = 0; i < this.storageArrays.length; i++) {
-@@ -948,9 +979,15 @@
+@@ -935,7 +968,11 @@
+         }
+ 
+         if (groundUpContinuous) {
+-            buf.readBytes(this.blockBiomeArray);
++            int[] ids = new int[256]; // Cleanroom: biome id + 1 as varints (SPacketChunkData), 0 = not generated
++            for (int b = 0; b < ids.length; b++) {
++                ids[b] = buf.readVarInt() - 1;
++            }
++            this.biomeIds.setAll(ids);
+         }
+ 
+         for (int j = 0; j < this.storageArrays.length; j++) {
+@@ -948,26 +985,42 @@
          this.isTerrainPopulated = true;
          this.generateHeightMap();
  
@@ -367,11 +388,13 @@
      }
  
      public Biome getBiome(BlockPos pos, BiomeProvider provider) {
-@@ -958,7 +995,12 @@
+         int i = pos.getX() & 15;
          int j = pos.getZ() & 15;
-         int k = this.blockBiomeArray[j << 4 | i] & 255;
-         if (k == 255) {
+-        int k = this.blockBiomeArray[j << 4 | i] & 255;
+-        if (k == 255) {
 -            Biome biome = provider.getBiome(pos, Biomes.PLAINS);
++        int k = this.biomeIds.get(j << 4 | i); // Cleanroom: full ids
++        if (k == com.cleanroommc.ids.ChunkBiomes.UNSET) {
 +            // Forge: checking for client ensures that biomes are only generated on integrated server
 +            // in singleplayer. Generating biomes on the client may corrupt the biome ID arrays on
 +            // the server while they are being generated because IntCache can't be thread safe,
@@ -379,9 +402,25 @@
 +            // This is not necessary in 1.13 and newer versions.
 +            Biome biome = world.isRemote ? Biomes.PLAINS : provider.getBiome(pos, Biomes.PLAINS);
              k = Biome.getIdForBiome(biome);
-             this.blockBiomeArray[j << 4 | i] = (byte)(k & 0xFF);
+-            this.blockBiomeArray[j << 4 | i] = (byte)(k & 0xFF);
++            this.biomeIds.set(j << 4 | i, k);
          }
-@@ -1005,10 +1047,11 @@
+ 
+         Biome biome1 = Biome.getBiome(k);
+         return biome1 == null ? Biomes.PLAINS : biome1;
+     }
+ 
+-    /** Returns an array containing a 16x16 mapping on the X/Z of block positions in this Chunk to biome IDs. */
++    /** Cleanroom: this chunk's biomes as full ids; use it instead of {@link #getBiomeArray()}, which only holds their low bytes */
++    public com.cleanroommc.ids.ChunkBiomes getBiomeIds() {
++        return this.biomeIds;
++    }
++
++    /** Returns an array containing a 16x16 mapping on the X/Z of block positions in this Chunk to biome IDs. Cleanroom: the low byte of each id; writes are picked up (see ChunkBiomes) */
+     public byte[] getBiomeArray() {
+         return this.blockBiomeArray;
+     }
+@@ -1005,10 +1058,11 @@
                      BlockPos blockpos1 = blockpos.add(k, (j << 4) + i1, l);
                      boolean flag = i1 == 0 || i1 == 15 || k == 0 || k == 15 || l == 0 || l == 15;
                      if (this.storageArrays[j] == NULL_BLOCK_STORAGE && flag
@@ -395,7 +434,7 @@
                                  this.world.checkLight(blockpos2);
                              }
                          }
-@@ -1104,7 +1147,8 @@
+@@ -1104,7 +1158,8 @@
  
          for (int l = blockpos$mutableblockpos.getY(); l > 0; l--) {
              blockpos$mutableblockpos.setPos(blockpos$mutableblockpos.getX(), l, blockpos$mutableblockpos.getZ());
@@ -405,7 +444,7 @@
                  this.world.checkLight(blockpos$mutableblockpos);
              }
          }
-@@ -1134,6 +1178,7 @@
+@@ -1134,6 +1189,7 @@
              LOGGER.warn("Could not set level chunk heightmap, array length is {} instead of {}", newHeightMap.length, this.heightMap.length);
          } else {
              System.arraycopy(newHeightMap, 0, this.heightMap, 0, this.heightMap.length);
@@ -413,7 +452,7 @@
          }
      }
  
-@@ -1190,4 +1235,48 @@
+@@ -1190,4 +1246,48 @@
          QUEUED,
          CHECK;
      }
