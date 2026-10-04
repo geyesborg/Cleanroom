@@ -140,13 +140,12 @@ public final class SectionBlockFormat {
     public static void read(NBTTagCompound section, BlockStateContainer data, IBlockState[] chunkPalette) {
         int[] palette = section.getIntArray(PALETTE);
         if (palette.length == 0) {
-            throw new IllegalStateException("Chunk section Y=" + section.getByte("Y") + " has an empty block palette.");
+            throw corrupt(section, "has an empty block palette");
         }
         IBlockState[] entries = new IBlockState[palette.length];
         for (int i = 0; i < palette.length; i++) {
             if (palette[i] < 0 || palette[i] >= chunkPalette.length) {
-                throw new IllegalStateException("Chunk section Y=" + section.getByte("Y") + " refers to chunk palette entry "
-                        + palette[i] + " of " + chunkPalette.length + ".");
+                throw corrupt(section, "refers to chunk palette entry " + palette[i] + " of " + chunkPalette.length);
             }
             entries[i] = chunkPalette[palette[i]];
         }
@@ -161,46 +160,49 @@ public final class SectionBlockFormat {
         int bits = bitsFor(entries.length);
         NBTBase tag = section.getTag(STATES);
         if (!(tag instanceof NBTTagLongArray longArray) || longArray.getLongArray().length != longCount(bits)) {
-            throw new IllegalStateException("Chunk section Y=" + section.getByte("Y") + " has " + entries.length
-                    + " palette entries but no " + longCount(bits) + "-long " + STATES + " array.");
+            throw corrupt(section, "has " + entries.length + " palette entries but no " + longCount(bits) + "-long " + STATES + " array");
         }
         long[] longs = longArray.getLongArray();
-        int[] values = null;
-        if (data.loadLocalPalette(entries, bits)) {
-            BitArray storage = data.getRawStorage();
-            if (bits == 4 && data.getRawBits() == 4) {
-                checkIndices(longs, bits, entries.length, section);
-                System.arraycopy(longs, 0, storage.getBackingLongArray(), 0, longs.length);
-                return;
-            }
-            values = unpack(longs, bits);
-            checkIndices(values, entries.length, section);
-            for (int i = 0; i < SIZE; i++) {
-                storage.setAt(i, values[i]);
-            }
+        // false: the palette can't take the entries in saved order (no air first, or more than 256 of them)
+        boolean local = data.loadLocalPalette(entries, bits);
+        if (local && bits == 4) {
+            checkNibbles(longs, entries.length, section);
+            System.arraycopy(longs, 0, data.getRawStorage().getBackingLongArray(), 0, longs.length);
             return;
         }
-        // The palette can't take the entries in saved order (no air first, or more than 256 of them)
-        values = unpack(longs, bits);
-        checkIndices(values, entries.length, section);
-        for (int i = 0; i < SIZE; i++) {
-            data.set(i & 15, i >> 8, i >> 4 & 15, entries[values[i]]);
-        }
-    }
-
-    private static void checkIndices(long[] longs, int bits, int paletteSize, NBTTagCompound section) {
-        if (paletteSize < 1 << bits) {
-            checkIndices(unpack(longs, bits), paletteSize, section);
-        }
-    }
-
-    private static void checkIndices(int[] values, int paletteSize, NBTTagCompound section) {
+        int[] values = unpack(longs, bits);
         for (int value : values) {
-            if (value >= paletteSize) {
-                throw new IllegalStateException("Chunk section Y=" + section.getByte("Y") + " refers to palette entry "
-                        + value + " of " + paletteSize + ".");
+            if (value >= entries.length) {
+                throw corrupt(section, "refers to palette entry " + value + " of " + entries.length);
             }
         }
+        BitArray storage = data.getRawStorage();
+        for (int i = 0; i < SIZE; i++) {
+            if (local) {
+                storage.setAt(i, values[i]);
+            } else {
+                data.set(i & 15, i >> 8, i >> 4 & 15, entries[values[i]]);
+            }
+        }
+    }
+
+    /** Validates 4-bit indices in place, without unpacking them. */
+    private static void checkNibbles(long[] longs, int paletteSize, NBTTagCompound section) {
+        if (paletteSize >= 16) {
+            return;
+        }
+        for (long word : longs) {
+            for (int shift = 0; shift < 64; shift += 4) {
+                int value = (int) (word >>> shift & 15);
+                if (value >= paletteSize) {
+                    throw corrupt(section, "refers to palette entry " + value + " of " + paletteSize);
+                }
+            }
+        }
+    }
+
+    private static IllegalStateException corrupt(NBTTagCompound section, String problem) {
+        return new IllegalStateException("Chunk section Y=" + section.getByte("Y") + " " + problem + ".");
     }
 
     static String toString(IBlockState state) {

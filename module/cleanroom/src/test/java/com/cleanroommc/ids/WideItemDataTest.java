@@ -3,7 +3,6 @@ package com.cleanroommc.ids;
 import io.netty.buffer.Unpooled;
 import net.minecraft.enchantment.Enchantment;
 import net.minecraft.enchantment.EnchantmentHelper;
-import net.minecraft.init.Bootstrap;
 import net.minecraft.init.Enchantments;
 import net.minecraft.init.Items;
 import net.minecraft.init.MobEffects;
@@ -11,10 +10,8 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.network.PacketBuffer;
 import net.minecraft.potion.PotionEffect;
-import net.minecraftforge.fml.common.DummyModContainer;
-import net.minecraftforge.fml.common.Loader;
-import net.minecraftforge.fml.common.ModMetadata;
 import net.minecraftforge.fml.common.registry.ForgeTestRunner;
+import net.minecraftforge.fml.common.registry.MinecraftTestHarness;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -29,13 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class WideItemDataTest {
     @BeforeAll
     public static void setup() {
-        System.setProperty("fml.queryResult", "confirm");
-        System.setProperty("fml.doNotBackup", "true");
-        Loader.instance();
-        Bootstrap.register();
-        Loader.instance().setupTestHarness(new DummyModContainer(new ModMetadata() {{
-            modId = "test";
-        }}));
+        MinecraftTestHarness.bootstrap();
     }
 
     @Test

@@ -176,7 +176,7 @@ public final class ChunkBiomes {
                 byIndex[i] = biome == null ? UNSET : Biome.getIdForBiome(biome);
             }
             if (byIndex.length == 0) {
-                throw new IllegalStateException("Chunk " + chunk.x + ", " + chunk.z + " has an empty biome palette.");
+                throw corrupt("has an empty biome palette");
             }
             int[] newIds = new int[SIZE];
             if (byIndex.length == 1) {
@@ -184,14 +184,12 @@ public final class ChunkBiomes {
             } else {
                 byte[] indices = chunkTag.getByteArray(INDICES);
                 if (indices.length != SIZE) {
-                    throw new IllegalStateException("Chunk " + chunk.x + ", " + chunk.z + " has " + byIndex.length
-                            + " biome palette entries but no " + SIZE + "-byte " + INDICES + " array.");
+                    throw corrupt("has " + byIndex.length + " biome palette entries but no " + SIZE + "-byte " + INDICES + " array");
                 }
                 for (int i = 0; i < SIZE; i++) {
                     int index = indices[i] & 0xFF;
                     if (index >= byIndex.length) {
-                        throw new IllegalStateException("Chunk " + chunk.x + ", " + chunk.z + " refers to biome palette entry "
-                                + index + " of " + byIndex.length + ".");
+                        throw corrupt("refers to biome palette entry " + index + " of " + byIndex.length);
                     }
                     newIds[i] = byIndex[index];
                 }
@@ -207,5 +205,9 @@ public final class ChunkBiomes {
             return true;
         }
         return false;
+    }
+
+    private IllegalStateException corrupt(String problem) {
+        return new IllegalStateException("Chunk " + chunk.x + ", " + chunk.z + " " + problem + ".");
     }
 }

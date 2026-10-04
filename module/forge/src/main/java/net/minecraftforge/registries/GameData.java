@@ -429,6 +429,7 @@ public class GameData
         }
     }
 
+    private static final Object BIOME_LOW_BYTE_LOCK = new Object();
     @Nullable
     private static volatile int[][] biomeIdsByLowByte;
 
@@ -441,18 +442,33 @@ public class GameData
         int[][] table = biomeIdsByLowByte;
         if (table == null)
         {
-            List<List<Integer>> lists = new ArrayList<>(256);
-            for (int i = 0; i < 256; i++)
-                lists.add(new ArrayList<>());
-            ForgeRegistry<Biome> biomes = RegistryManager.ACTIVE.getRegistry(BIOMES);
-            for (Biome biome : biomes)
-                lists.get(biomes.getID(biome) & 0xFF).add(biomes.getID(biome));
-            table = new int[256][];
-            for (int i = 0; i < 256; i++)
-                table[i] = lists.get(i).stream().mapToInt(Integer::intValue).sorted().toArray();
-            biomeIdsByLowByte = table;
+            synchronized (BIOME_LOW_BYTE_LOCK)
+            {
+                table = biomeIdsByLowByte;
+                if (table == null)
+                {
+                    List<List<Integer>> lists = new ArrayList<>(256);
+                    for (int i = 0; i < 256; i++)
+                        lists.add(new ArrayList<>());
+                    ForgeRegistry<Biome> biomes = RegistryManager.ACTIVE.getRegistry(BIOMES);
+                    for (Biome biome : biomes) // in id order, so each list is ascending
+                        lists.get(biomes.getID(biome) & 0xFF).add(biomes.getID(biome));
+                    table = new int[256][];
+                    for (int i = 0; i < 256; i++)
+                        table[i] = lists.get(i).stream().mapToInt(Integer::intValue).toArray();
+                    biomeIdsByLowByte = table;
+                }
+            }
         }
         return table[lowByte & 0xFF];
+    }
+
+    private static void invalidateBiomeIdsByLowByte()
+    {
+        synchronized (BIOME_LOW_BYTE_LOCK)
+        {
+            biomeIdsByLowByte = null;
+        }
     }
 
     private static class BiomeCallbacks implements IForgeRegistry.AddCallback<Biome>, IForgeRegistry.ClearCallback<Biome>
@@ -462,13 +478,13 @@ public class GameData
         @Override
         public void onAdd(IForgeRegistryInternal<Biome> owner, RegistryManager stage, int id, Biome obj, @Nullable Biome oldObj)
         {
-            biomeIdsByLowByte = null;
+            invalidateBiomeIdsByLowByte();
         }
 
         @Override
         public void onClear(IForgeRegistryInternal<Biome> owner, RegistryManager stage)
         {
-            biomeIdsByLowByte = null;
+            invalidateBiomeIdsByLowByte();
         }
     }
 

@@ -9,15 +9,12 @@ import java.util.zip.DeflaterOutputStream;
 import com.cleanroommc.ids.SectionBlockFormat;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.init.Blocks;
-import net.minecraft.init.Bootstrap;
 import net.minecraft.nbt.CompressedStreamTools;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.world.chunk.BlockStateContainer;
 import net.minecraft.world.chunk.NibbleArray;
-import net.minecraftforge.fml.common.DummyModContainer;
-import net.minecraftforge.fml.common.Loader;
-import net.minecraftforge.fml.common.ModMetadata;
 import net.minecraftforge.fml.common.registry.ForgeTestRunner;
+import net.minecraftforge.fml.common.registry.MinecraftTestHarness;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -38,14 +35,7 @@ public class SectionFormatBenchmark
     @BeforeAll
     public static void setup()
     {
-        System.setProperty("fml.queryResult", "confirm");
-        System.setProperty("fml.doNotBackup", "true");
-        Loader.instance();
-        Bootstrap.register();
-        Loader.instance().setupTestHarness(new DummyModContainer(new ModMetadata()
-        {{
-            modId = "test";
-        }}));
+        MinecraftTestHarness.bootstrap();
     }
 
     private static BlockStateContainer[] sections()

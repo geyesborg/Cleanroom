@@ -41,7 +41,8 @@ final class BlockStateIdMap extends ObjectIntIdentityMap<IBlockState>
         this.storeInStates = storeInStates;
     }
 
-    void invalidate()
+    /** Synchronized with {@link #rebuild()}: a rebuild that read the registry before a change can't publish after it. */
+    synchronized void invalidate()
     {
         table = null;
     }
