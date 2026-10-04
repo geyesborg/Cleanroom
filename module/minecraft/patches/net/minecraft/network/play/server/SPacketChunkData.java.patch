@@ -1,22 +1,33 @@
 --- original/net/minecraft/network/play/server/SPacketChunkData.java
 +++ modified/net/minecraft/network/play/server/SPacketChunkData.java
-@@ -120,7 +120,9 @@
+@@ -24,6 +24,7 @@
+     private byte[] buffer;
+     private List<NBTTagCompound> tileEntityTags;
+     private boolean fullChunk;
++    private int[] biomeIds; // Cleanroom: the ids calculateChunkSize sized, written by extractChunkData
+ 
+     public SPacketChunkData() {
+     }
+@@ -120,7 +121,11 @@
          }
  
          if (this.isFullChunk()) {
 -            buf.writeBytes(chunkIn.getBiomeArray());
-+            for (int id : chunkIn.getBiomeIds().copy()) { // Cleanroom: biome id + 1 as varints (0 = not generated), read in Chunk.read
++            int[] ids = this.biomeIds != null ? this.biomeIds : chunkIn.getBiomeIds().copy();
++            this.biomeIds = null;
++            for (int id : ids) { // Cleanroom: biome id + 1 as varints (0 = not generated), read in Chunk.read
 +                buf.writeVarInt(id + 1);
 +            }
          }
  
          return i;
-@@ -143,7 +145,9 @@
+@@ -143,7 +148,10 @@
          }
  
          if (this.isFullChunk()) {
 -            i += chunkIn.getBiomeArray().length;
-+            for (int id : chunkIn.getBiomeIds().copy()) { // Cleanroom: see extractChunkData
++            this.biomeIds = chunkIn.getBiomeIds().copy(); // one copy: a biome changing in between can't change the size
++            for (int id : this.biomeIds) { // Cleanroom: see extractChunkData
 +                i += PacketBuffer.getVarIntSize(id + 1);
 +            }
          }

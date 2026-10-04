@@ -87,9 +87,18 @@ public class IdFormatContainer extends DummyModContainer implements WorldAccessC
             return;
         }
         File world = handler.getWorldDirectory();
-        if (!saved.isEmpty() && Integer.parseInt(saved) > Integer.parseInt(FORMAT)) {
-            throw new IllegalStateException("World " + world.getName() + " was saved with Cleanroom ID format " + saved
-                    + "; this Cleanroom reads format " + FORMAT + " and older.");
+        if (!saved.isEmpty()) {
+            int format;
+            try {
+                format = Integer.parseInt(saved);
+            } catch (NumberFormatException e) {
+                throw new IllegalStateException("World " + world.getName() + " has an unreadable Cleanroom ID format \"" + saved
+                        + "\" in level.dat (cleanroom_ids.Format); restore level.dat from level.dat_old or a backup.", e);
+            }
+            if (format > Integer.parseInt(FORMAT)) {
+                throw new IllegalStateException("World " + world.getName() + " was saved with Cleanroom ID format " + saved
+                        + "; this Cleanroom reads format " + FORMAT + " and older.");
+            }
         }
         if (!hasChunks(world)) {
             return;
