@@ -64,8 +64,8 @@ public class BlockStateMappingsTest
         {
             int realbsm = id << 4 | meta; // computed blockstateid for this meta
             IBlockState realst = bl.getStateFromMeta(meta); // The state that the block assigns to this meta
-            int bsm = GameData.getBlockStateIDMap().get(realst); // The blockstateid for the meta's state
-            IBlockState foundst = GameData.getBlockStateIDMap().getByValue(realbsm); // The state that is stored for the computed blockstateid
+            int bsm = GameData.getLegacyBlockStateIDMap().get(realst); // The blockstateid for the meta's state
+            IBlockState foundst = GameData.getLegacyBlockStateIDMap().getByValue(realbsm); // The state that is stored for the computed blockstateid
             assertEquals(realbsm, bsm, "Got computed blockstate ids that match");
             assertEquals(realst, foundst, "Got equal states");
         }

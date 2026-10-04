@@ -119,6 +119,7 @@ public class GameData
 
     private static final ResourceLocation BLOCK_TO_ITEM         = new ResourceLocation("minecraft:blocktoitemmap");
     private static final ResourceLocation BLOCKSTATE_TO_ID      = new ResourceLocation("minecraft:blockstatetoid");
+    private static final ResourceLocation BLOCKSTATE_TO_LEGACY_ID = new ResourceLocation("cleanroom:blockstatetolegacyid");
     private static final ResourceLocation ENTITY_CLASS_TO_ENTRY = new ResourceLocation("forge:entity_class_to_entry");
     private static final ResourceLocation SERIALIZER_TO_ENTRY   = new ResourceLocation("forge:serializer_to_entry");
 
@@ -192,10 +193,21 @@ public class GameData
         return GameRegistry.findRegistry(Item.class).getSlaveMap(BLOCK_TO_ITEM, BiMap.class);
     }
 
+    /** Runtime block state numbers, see {@link BlockStateIdMap}. */
     @SuppressWarnings("unchecked")
     public static ObjectIntIdentityMap<IBlockState> getBlockStateIDMap()
     {
         return GameRegistry.findRegistry(Block.class).getSlaveMap(BLOCKSTATE_TO_ID, ObjectIntIdentityMap.class);
+    }
+
+    /**
+     * The pre-Cleanroom encoding, {@code block id << 4 | meta}: only for chunk data in the old Anvil format, which
+     * can't hold blocks past id 4095 or more than 16 states per block.
+     */
+    @SuppressWarnings("unchecked")
+    public static ObjectIntIdentityMap<IBlockState> getLegacyBlockStateIDMap()
+    {
+        return GameRegistry.findRegistry(Block.class).getSlaveMap(BLOCKSTATE_TO_LEGACY_ID, ObjectIntIdentityMap.class);
     }
 
     @SuppressWarnings("unchecked")
@@ -322,8 +334,10 @@ public class GameData
         @Override
         public void onAdd(IForgeRegistryInternal<Block> owner, RegistryManager stage, int id, Block block, @Nullable Block oldBlock)
         {
+            owner.getSlaveMap(BLOCKSTATE_TO_ID, BlockStateIdMap.class).invalidate();
+
             @SuppressWarnings("unchecked")
-            ClearableObjectIntIdentityMap<IBlockState> blockstateMap = owner.getSlaveMap(BLOCKSTATE_TO_ID, ClearableObjectIntIdentityMap.class);
+            ClearableObjectIntIdentityMap<IBlockState> blockstateMap = owner.getSlaveMap(BLOCKSTATE_TO_LEGACY_ID, ClearableObjectIntIdentityMap.class);
 
             if (oldBlock != null)
             {
@@ -372,12 +386,15 @@ public class GameData
         @Override
         public void onClear(IForgeRegistryInternal<Block> owner, RegistryManager stage)
         {
-            owner.getSlaveMap(BLOCKSTATE_TO_ID, ClearableObjectIntIdentityMap.class).clear();
+            owner.getSlaveMap(BLOCKSTATE_TO_ID, BlockStateIdMap.class).invalidate();
+            owner.getSlaveMap(BLOCKSTATE_TO_LEGACY_ID, ClearableObjectIntIdentityMap.class).clear();
         }
 
         @Override
         public void onCreate(IForgeRegistryInternal<Block> owner, RegistryManager stage)
         {
+            // Only the active registry's numbers are stored in the states themselves
+            owner.setSlaveMap(BLOCKSTATE_TO_ID, new BlockStateIdMap(owner, stage == RegistryManager.ACTIVE));
             final ClearableObjectIntIdentityMap<IBlockState> idMap = new ClearableObjectIntIdentityMap<IBlockState>()
             {
                 @SuppressWarnings("deprecation")
@@ -392,7 +409,7 @@ public class GameData
                     return integer == null ? -1 : integer.intValue();
                 }
             };
-            owner.setSlaveMap(BLOCKSTATE_TO_ID, idMap);
+            owner.setSlaveMap(BLOCKSTATE_TO_LEGACY_ID, idMap);
             owner.setSlaveMap(BLOCK_TO_ITEM, HashBiMap.create());
         }
 

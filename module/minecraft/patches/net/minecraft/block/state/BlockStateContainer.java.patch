@@ -28,7 +28,14 @@
              map2.put(map1, blockstatecontainer$stateimplementation);
              list1.add(blockstatecontainer$stateimplementation);
          }
-@@ -148,6 +156,13 @@
+@@ -143,11 +151,20 @@
+         private final ImmutableMap<IProperty<?>, Comparable<?>> properties;
+         /** Lookup-table for IBlockState instances. This is a Table<Property, Value, State>. */
+         protected ImmutableTable<IProperty<?>, Comparable<?>, IBlockState> propertyValueTable;
++        /** Cleanroom: this state's number in Block.BLOCK_STATE_IDS, written by Forge's BlockStateIdMap; -1 until numbered */
++        public int runtimeStateId = -1;
+ 
+         protected StateImplementation(Block blockIn, ImmutableMap<IProperty<?>, Comparable<?>> propertiesIn) {
              this.block = blockIn;
              this.properties = propertiesIn;
          }
@@ -42,7 +49,7 @@
  
          /** Get the names of all properties defined for this BlockState */
          @Override
-@@ -458,5 +473,92 @@
+@@ -458,5 +475,92 @@
          public BlockFaceShape getBlockFaceShape(IBlockAccess worldIn, BlockPos pos, EnumFacing facing) {
              return this.block.getBlockFaceShape(worldIn, this, pos, facing);
          }
