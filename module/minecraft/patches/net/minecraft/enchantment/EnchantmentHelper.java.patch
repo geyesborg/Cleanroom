@@ -1,5 +1,41 @@
 --- original/net/minecraft/enchantment/EnchantmentHelper.java
 +++ modified/net/minecraft/enchantment/EnchantmentHelper.java
+@@ -41,7 +41,7 @@
+ 
+         for (int i = 0; i < nbttaglist.tagCount(); i++) {
+             NBTTagCompound nbttagcompound = nbttaglist.getCompoundTagAt(i);
+-            Enchantment enchantment = Enchantment.getEnchantmentByID(nbttagcompound.getShort("id"));
++            Enchantment enchantment = Enchantment.getEnchantmentByID(nbttagcompound.getInteger("id")); // Cleanroom: short or int
+             int j = nbttagcompound.getShort("lvl");
+             if (enchantment == enchID) {
+                 return j;
+@@ -58,7 +58,7 @@
+ 
+         for (int i = 0; i < nbttaglist.tagCount(); i++) {
+             NBTTagCompound nbttagcompound = nbttaglist.getCompoundTagAt(i);
+-            Enchantment enchantment = Enchantment.getEnchantmentByID(nbttagcompound.getShort("id"));
++            Enchantment enchantment = Enchantment.getEnchantmentByID(nbttagcompound.getInteger("id")); // Cleanroom: short or int
+             int j = nbttagcompound.getShort("lvl");
+             map.put(enchantment, j);
+         }
+@@ -75,7 +75,7 @@
+             if (enchantment != null) {
+                 int i = entry.getValue();
+                 NBTTagCompound nbttagcompound = new NBTTagCompound();
+-                nbttagcompound.setShort("id", (short)Enchantment.getEnchantmentID(enchantment));
++                com.cleanroommc.ids.WideNbt.setShortOrInt(nbttagcompound, "id", Enchantment.getEnchantmentID(enchantment)); // Cleanroom: ids past 32767
+                 nbttagcompound.setShort("lvl", (short)i);
+                 nbttaglist.appendTag(nbttagcompound);
+                 if (stack.getItem() == Items.ENCHANTED_BOOK) {
+@@ -99,7 +99,7 @@
+             NBTTagList nbttaglist = stack.getEnchantmentTagList();
+ 
+             for (int i = 0; i < nbttaglist.tagCount(); i++) {
+-                int j = nbttaglist.getCompoundTagAt(i).getShort("id");
++                int j = nbttaglist.getCompoundTagAt(i).getInteger("id"); // Cleanroom: short or int
+                 int k = nbttaglist.getCompoundTagAt(i).getShort("lvl");
+                 if (Enchantment.getEnchantmentByID(j) != null) {
+                     modifier.calculateModifier(Enchantment.getEnchantmentByID(j), k);
 @@ -120,6 +120,7 @@
          ENCHANTMENT_MODIFIER_DAMAGE.damageModifier = 0;
          ENCHANTMENT_MODIFIER_DAMAGE.source = source;

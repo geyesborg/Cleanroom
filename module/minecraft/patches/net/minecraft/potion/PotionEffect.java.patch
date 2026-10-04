@@ -28,7 +28,13 @@
          return this.potion;
      }
  
-@@ -172,12 +179,13 @@
+@@ -167,17 +174,18 @@
+ 
+     /** Write a custom potion effect to a potion item's NBT data. */
+     public NBTTagCompound writeCustomPotionEffectToNBT(NBTTagCompound nbt) {
+-        nbt.setByte("Id", (byte)Potion.getIdFromPotion(this.getPotion()));
++        com.cleanroommc.ids.WideNbt.setUnsignedByteOrInt(nbt, "Id", Potion.getIdFromPotion(this.getPotion())); // Cleanroom: ids past 255
+         nbt.setByte("Amplifier", (byte)this.getAmplifier());
          nbt.setInteger("Duration", this.getDuration());
          nbt.setBoolean("Ambient", this.getIsAmbient());
          nbt.setBoolean("ShowParticles", this.doesShowParticles());
@@ -39,7 +45,7 @@
      /** Read a custom potion effect from a potion item's NBT data. */
      public static PotionEffect readCustomPotionEffectFromNBT(NBTTagCompound nbt) {
 -        int i = nbt.getByte("Id");
-+        int i = nbt.getByte("Id") & 0xFF;
++        int i = com.cleanroommc.ids.WideNbt.getUnsignedByteOrInt(nbt, "Id"); // Cleanroom: byte or int
          Potion potion = Potion.getPotionById(i);
          if (potion == null) {
              return null;

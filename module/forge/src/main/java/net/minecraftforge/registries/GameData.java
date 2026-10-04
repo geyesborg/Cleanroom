@@ -106,12 +106,12 @@ public class GameData
 
     private static final int MAX_BLOCK_ID = Integer.MAX_VALUE >> 5; // Cleanroom: chunks save block names, packets use varints (was 4095: 12 bits in Anvil sections)
     private static final int MIN_ITEM_ID = 4096; // first id for items without a block id (vanilla item blocks reuse their block's id)
-    private static final int MAX_ITEM_ID = 31999;
-    private static final int MAX_POTION_ID = 255; // SPacketEntityEffect sends bytes, we can only use 255
+    private static final int MAX_ITEM_ID = Integer.MAX_VALUE >> 5; // Cleanroom: item stacks use varints on the network (was 31999: a short)
+    private static final int MAX_POTION_ID = Integer.MAX_VALUE >> 5; // Cleanroom: SPacketEntityEffect sends varints, NBT widens past a byte (was 255)
     private static final int MAX_BIOME_ID = Integer.MAX_VALUE >> 5; // Cleanroom: chunks save biome names, packets use varints (was 255: a byte per column)
     private static final int MAX_SOUND_ID = Integer.MAX_VALUE >> 5; // Varint (SPacketSoundEffect)
     private static final int MAX_POTIONTYPE_ID = Integer.MAX_VALUE >> 5; // Int (SPacketEffect)
-    private static final int MAX_ENCHANTMENT_ID = Short.MAX_VALUE - 1; // Short - serialized as a short in ItemStack NBTs.
+    private static final int MAX_ENCHANTMENT_ID = Integer.MAX_VALUE >> 5; // Cleanroom: ItemStack NBT widens past a short (was Short.MAX_VALUE - 1)
     private static final int MAX_ENTITY_ID = Integer.MAX_VALUE >> 5; // Varint (SPacketSpawnMob)
     private static final int MAX_RECIPE_ID = Integer.MAX_VALUE >> 5; // Varint CPacketRecipeInfo/SPacketRecipeBook
     private static final int MAX_PROFESSION_ID = 1024; //TODO: Is this serialized anywhere anymore?

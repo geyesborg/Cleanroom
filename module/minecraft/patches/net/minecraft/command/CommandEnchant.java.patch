@@ -1,0 +1,11 @@
+--- original/net/minecraft/command/CommandEnchant.java
++++ modified/net/minecraft/command/CommandEnchant.java
+@@ -68,7 +68,7 @@
+             NBTTagList nbttaglist = itemstack.getEnchantmentTagList();
+ 
+             for (int j = 0; j < nbttaglist.tagCount(); j++) {
+-                int k = nbttaglist.getCompoundTagAt(j).getShort("id");
++                int k = nbttaglist.getCompoundTagAt(j).getInteger("id"); // Cleanroom: short or int
+                 if (Enchantment.getEnchantmentByID(k) != null) {
+                     Enchantment enchantment1 = Enchantment.getEnchantmentByID(k);
+                     if (!enchantment.isCompatibleWith(enchantment1)) {

@@ -39,13 +39,13 @@ public class PacketUtil
     {
         if (stack.isEmpty())
         {
-            buffer.writeShort(-1);
+            buffer.writeVarInt(0); // Cleanroom: PacketBuffer.writeItemStack's format (varint id + 1, count, damage)
         }
         else
         {
-            buffer.writeShort(Item.getIdFromItem(stack.getItem()));
-            buffer.writeByte(stack.getCount());
-            buffer.writeShort(stack.getMetadata());
+            buffer.writeVarInt(Item.getIdFromItem(stack.getItem()) + 1);
+            buffer.writeVarInt(stack.getCount());
+            buffer.writeVarInt(stack.getMetadata());
             NBTTagCompound nbttagcompound = null;
 
             if (stack.getItem().isDamageable() || stack.getItem().getShareTag())

@@ -39,7 +39,7 @@
      }
  
      private void updateEmptyState() {
-@@ -105,7 +112,8 @@
+@@ -105,9 +112,10 @@
      }
  
      public ItemStack(NBTTagCompound compound) {
@@ -47,9 +47,12 @@
 +        this.capNBT = compound.hasKey("ForgeCaps") ? compound.getCompoundTag("ForgeCaps") : null;
 +        this.item = compound.hasKey("id", 8) ? Item.getByNameOrId(compound.getString("id")) : Items.AIR; //Forge fix tons of NumberFormatExceptions that are caused by deserializing EMPTY ItemStacks.
          this.stackSize = compound.getByte("Count");
-         this.itemDamage = Math.max(0, compound.getShort("Damage"));
+-        this.itemDamage = Math.max(0, compound.getShort("Damage"));
++        this.itemDamage = Math.max(0, compound.getInteger("Damage")); // Cleanroom: short or int
          if (compound.hasKey("tag", 10)) {
-@@ -116,12 +124,17 @@
+             this.stackTagCompound = compound.getCompoundTag("tag");
+             if (this.item != null) {
+@@ -116,15 +124,20 @@
          }
  
          this.updateEmptyState();
@@ -67,7 +70,11 @@
 +        } else if (this.getItemRaw() == null || this.getItemRaw() == Items.AIR) {
              return true;
          } else {
-             return this.stackSize <= 0 ? true : this.itemDamage < -32768 || this.itemDamage > 65535;
+-            return this.stackSize <= 0 ? true : this.itemDamage < -32768 || this.itemDamage > 65535;
++            return this.stackSize <= 0; // Cleanroom: damage past 16 bits is valid now that packets and NBT carry it (was itemDamage < -32768 || itemDamage > 65535)
+         }
+     }
+ 
 @@ -144,7 +157,7 @@
  
      /** Returns the object corresponding to the stack. */
@@ -112,7 +119,13 @@
      public float getDestroySpeed(IBlockState blockIn) {
          return this.getItem().getDestroySpeed(this, blockIn);
      }
-@@ -191,12 +225,17 @@
+@@ -186,17 +220,22 @@
+         ResourceLocation resourcelocation = Item.REGISTRY.getNameForObject(this.item);
+         nbt.setString("id", resourcelocation == null ? "minecraft:air" : resourcelocation.toString());
+         nbt.setByte("Count", (byte)this.stackSize);
+-        nbt.setShort("Damage", (short)this.itemDamage);
++        com.cleanroommc.ids.WideNbt.setShortOrInt(nbt, "Damage", this.itemDamage); // Cleanroom: damage past 32767
+         if (this.stackTagCompound != null) {
              nbt.setTag("tag", this.stackTagCompound);
          }
  
@@ -247,6 +260,15 @@
          }
      }
  
+@@ -558,7 +608,7 @@
+ 
+                 for (int j = 0; j < nbttaglist.tagCount(); j++) {
+                     NBTTagCompound nbttagcompound = nbttaglist.getCompoundTagAt(j);
+-                    int k = nbttagcompound.getShort("id");
++                    int k = nbttagcompound.getInteger("id"); // Cleanroom: short or int
+                     int l = nbttagcompound.getShort("lvl");
+                     Enchantment enchantment = Enchantment.getEnchantmentByID(k);
+                     if (enchantment != null) {
 @@ -646,6 +696,7 @@
                                      I18n.translateToLocal("attribute.name." + entry.getKey())
                                  )
@@ -270,6 +292,15 @@
 +    @Deprecated // use Forge version on item
      public EnumRarity getRarity() {
          return this.getItem().getRarity(this);
+     }
+@@ -729,7 +782,7 @@
+ 
+         NBTTagList nbttaglist = this.stackTagCompound.getTagList("ench", 10);
+         NBTTagCompound nbttagcompound = new NBTTagCompound();
+-        nbttagcompound.setShort("id", (short)Enchantment.getEnchantmentID(ench));
++        com.cleanroommc.ids.WideNbt.setShortOrInt(nbttagcompound, "id", Enchantment.getEnchantmentID(ench)); // Cleanroom: ids past 32767
+         nbttagcompound.setShort("lvl", (byte)level);
+         nbttaglist.appendTag(nbttagcompound);
      }
 @@ -808,7 +861,7 @@
                  }

@@ -1,0 +1,29 @@
+--- original/net/minecraft/item/ItemEnchantedBook.java
++++ modified/net/minecraft/item/ItemEnchantedBook.java
+@@ -52,7 +52,7 @@
+ 
+         for (int i = 0; i < nbttaglist.tagCount(); i++) {
+             NBTTagCompound nbttagcompound = nbttaglist.getCompoundTagAt(i);
+-            int j = nbttagcompound.getShort("id");
++            int j = nbttagcompound.getInteger("id"); // Cleanroom: short or int
+             Enchantment enchantment = Enchantment.getEnchantmentByID(j);
+             if (enchantment != null) {
+                 tooltip.add(enchantment.getTranslatedName(nbttagcompound.getShort("lvl")));
+@@ -67,7 +67,7 @@
+ 
+         for (int i = 0; i < nbttaglist.tagCount(); i++) {
+             NBTTagCompound nbttagcompound = nbttaglist.getCompoundTagAt(i);
+-            if (Enchantment.getEnchantmentByID(nbttagcompound.getShort("id")) == stack.enchantment) {
++            if (Enchantment.getEnchantmentByID(nbttagcompound.getInteger("id")) == stack.enchantment) { // Cleanroom: short or int
+                 if (nbttagcompound.getShort("lvl") < stack.enchantmentLevel) {
+                     nbttagcompound.setShort("lvl", (short)stack.enchantmentLevel);
+                 }
+@@ -79,7 +79,7 @@
+ 
+         if (flag) {
+             NBTTagCompound nbttagcompound1 = new NBTTagCompound();
+-            nbttagcompound1.setShort("id", (short)Enchantment.getEnchantmentID(stack.enchantment));
++            com.cleanroommc.ids.WideNbt.setShortOrInt(nbttagcompound1, "id", Enchantment.getEnchantmentID(stack.enchantment)); // Cleanroom: ids past 32767
+             nbttagcompound1.setShort("lvl", (short)stack.enchantmentLevel);
+             nbttaglist.appendTag(nbttagcompound1);
+         }

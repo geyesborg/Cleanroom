@@ -15,3 +15,21 @@
              this.increment(i, j);
          }
      }
+@@ -31,7 +35,7 @@
+     public static int pack(ItemStack stack) {
+         Item item = stack.getItem();
+         int i = item.getHasSubtypes() ? stack.getMetadata() : 0;
+-        return Item.REGISTRY.getIDForObject(item) << 16 | i & 65535;
++        return com.cleanroommc.ids.PackedItems.pack(item, i); // Cleanroom: item ids past 65535 and wide damage values
+     }
+ 
+     public boolean containsItem(int packedItem) {
+@@ -69,7 +73,7 @@
+     }
+ 
+     public static ItemStack unpack(int packedItem) {
+-        return packedItem == 0 ? ItemStack.EMPTY : new ItemStack(Item.getItemById(packedItem >> 16 & 65535), 1, packedItem & 65535);
++        return com.cleanroommc.ids.PackedItems.unpack(packedItem);
+     }
+ 
+     public void clear() {

@@ -130,7 +130,7 @@
          Entity entity = this.world.getEntityByID(packetIn.getEntityId());
          if (entity instanceof EntityLivingBase) {
 -            Potion potion = Potion.getPotionById(packetIn.getEffectId());
-+            Potion potion = Potion.getPotionById(packetIn.getEffectId() & 0xFF);
++            Potion potion = Potion.getPotionById(packetIn.getFullEffectId()); // Cleanroom: potion ids past 255
 +
              if (potion != null) {
                  PotionEffect potioneffect = new PotionEffect(
