@@ -3,6 +3,7 @@ package net.minecraftforge.registries;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import net.minecraft.block.Block;
@@ -232,5 +233,30 @@ public class DerivedNumberingTest
             assertEquals(i, reg.getID(entries.get(i)));
         }
         assertEquals(null, reg.getRaw(entries.size()));
+    }
+    @Test
+    public void renumberReportsTheMovedIds()
+    {
+        ResourceLocation name = new ResourceLocation("wideids_test", "remap_blocks");
+        RegistryManager manager = new RegistryManager("TEST_REMAP");
+        ForgeRegistry<Block> reg = manager.createRegistry(name, Block.class, null, null, null, null, null, false, false, false, null, null);
+
+        // seeds come in registration order, reverse of name order: c=0, b=1, a=2
+        reg.register(blockNamed(new ResourceLocation("wideids_test", "remap_c")));
+        reg.register(blockNamed(new ResourceLocation("wideids_test", "remap_b")));
+        reg.register(blockNamed(new ResourceLocation("wideids_test", "remap_a")));
+        reg.freeze();
+
+        // frozen order is name order: a=0, b=1, c=2 - a and c moved, b did not
+        Map<ResourceLocation, Integer[]> remaps = reg.lastRenumber();
+        Integer[] cMove = remaps.get(new ResourceLocation("wideids_test", "remap_c"));
+        Integer[] aMove = remaps.get(new ResourceLocation("wideids_test", "remap_a"));
+        assertNotNull(cMove, "c moved at freeze");
+        assertNotNull(aMove, "a moved at freeze");
+        assertEquals(0, (int) cMove[0], "old id is the seed");
+        assertEquals(2, (int) cMove[1], "new id is the derived one");
+        assertEquals(2, (int) aMove[0], "old id is the seed");
+        assertEquals(0, (int) aMove[1], "new id is the derived one");
+        assertEquals(2, remaps.size(), "only the two entries whose id actually changed are reported");
     }
 }

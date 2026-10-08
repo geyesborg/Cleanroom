@@ -13,6 +13,7 @@ import net.minecraftforge.registries.GameData;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.lang.ref.WeakReference;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
@@ -37,7 +38,7 @@ public final class ChunkBiomes {
     private static final Logger LOGGER = LogManager.getLogger("Cleanroom");
 
     /** Identity map (arrays never override equals) from a snapshot handed out by {@link #snapshotBytes} to its chunk. */
-    private static final Map<byte[], Chunk> SNAPSHOTS = Collections.synchronizedMap(new WeakHashMap<>());
+    private static final Map<byte[], WeakReference<Chunk>> SNAPSHOTS = Collections.synchronizedMap(new WeakHashMap<>());
 
     private final Chunk chunk;
     private final int[] ids = new int[SIZE];
@@ -114,7 +115,7 @@ public final class ChunkBiomes {
         for (int i = 0; i < SIZE; i++) {
             snapshot[i] = (byte) biomes.ids[i];
         }
-        SNAPSHOTS.put(snapshot, chunk);
+        SNAPSHOTS.put(snapshot, new WeakReference<>(chunk));
         return snapshot;
     }
 
@@ -126,7 +127,8 @@ public final class ChunkBiomes {
      */
     public static void storeByte(byte[] array, int index, int value) {
         array[index] = (byte) value;
-        Chunk owner = SNAPSHOTS.get(array);
+        WeakReference<Chunk> ref = SNAPSHOTS.get(array);
+        Chunk owner = ref == null ? null : ref.get();
         if (owner != null) {
             owner.getBiomeIds().storeFromMod(index, value);
         }

@@ -27,14 +27,14 @@ import net.minecraftforge.common.property.IExtendedBlockState;
  */
 final class BlockStateIdMap extends ObjectIntIdentityMap<IBlockState>
 {
-    private record Table(IdentityHashMap<IBlockState, Integer> ids, IBlockState[] states) {}
+    private record Table(int generation, IdentityHashMap<IBlockState, Integer> ids, IBlockState[] states) {}
 
-    private final Iterable<Block> registry;
+    private final ForgeRegistry<Block> registry;
     private final boolean storeInStates;
     @Nullable
     private volatile Table table;
 
-    BlockStateIdMap(Iterable<Block> registry, boolean storeInStates)
+    BlockStateIdMap(ForgeRegistry<Block> registry, boolean storeInStates)
     {
         super(0);
         this.registry = registry;
@@ -50,13 +50,14 @@ final class BlockStateIdMap extends ObjectIntIdentityMap<IBlockState>
     private Table table()
     {
         Table t = table;
-        return t != null ? t : rebuild();
+        return t != null && t.generation == registry.generation() ? t : rebuild();
     }
 
     private synchronized Table rebuild()
     {
         Table t = table;
-        if (t != null)
+        int generation = registry.generation();
+        if (t != null && t.generation == generation)
             return t;
         IdentityHashMap<IBlockState, Integer> ids = new IdentityHashMap<>();
         List<IBlockState> states = new ArrayList<>();
@@ -77,7 +78,7 @@ final class BlockStateIdMap extends ObjectIntIdentityMap<IBlockState>
                     impl.runtimeStateId = i;
             }
         }
-        t = new Table(ids, byId);
+        t = new Table(generation, ids, byId);
         table = t;
         return t;
     }

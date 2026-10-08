@@ -492,6 +492,14 @@ dummies, blocked ids, snapshots. The retention feature itself is separate work.
 - One handshake message: mod list, per-registry hashes and format version together, instead of the state
   machine.
 
+**Modifiable registries renumbering mid-session (found in review).** Recipes are `allowModification()`:
+CraftTweaker's `/ct reload` or any runtime recipe removal does `unfreeze()` → change → `freeze()`, which
+renumbers densely, so removing one recipe shifts every later recipe id for every connected client until they
+reconnect. Forge left a hole, so only the removed id was affected. Options: (a) for modifiable registries,
+pin numbering once the server is running and append new entries after the pinned block (a deliberate
+exception to "derived at freeze", scoped to registries nothing saves); (b) accept it and document
+"reconnect after a recipe reload". Proposed: (a).
+
 **Hash handshake edge.** Entries a client-only mod adds to a synced registry are refused, not appended (Forge
 dummied them). Is there a legitimate case where the two sides should differ that the hash would wrongly
 reject?

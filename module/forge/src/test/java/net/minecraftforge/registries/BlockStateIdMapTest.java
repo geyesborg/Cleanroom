@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import net.minecraft.block.Block;
+import net.minecraft.block.material.Material;
 import net.minecraft.block.state.BlockStateContainer;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.init.Blocks;
@@ -104,5 +105,27 @@ public class BlockStateIdMapTest
     public void addingStatesByHandIsRejected()
     {
         assertThrows(UnsupportedOperationException.class, () -> Block.BLOCK_STATE_IDS.put(Blocks.STONE.getDefaultState(), 5));
+    }
+    @Test
+    public void tableBuiltBeforeFreezeIsRebuiltAfterRenumber()
+    {
+        ForgeRegistry<Block> blocks = RegistryManager.ACTIVE.getRegistry(GameData.BLOCKS);
+        blocks.unfreeze();
+        Block zzz = new Block(Material.ROCK).setRegistryName("wideids_test", "zzz_first");
+        Block aaa = new Block(Material.ROCK).setRegistryName("wideids_test", "aaa_first");
+        blocks.register(zzz);
+        blocks.register(aaa);
+
+        // Builds the table in seed order; freeze() then renumbers without firing any callback
+        Block.BLOCK_STATE_IDS.get(aaa.getDefaultState());
+        blocks.freeze();
+
+        List<IBlockState> expected = expectedOrder();
+        for (int i = 0; i < expected.size(); i++)
+        {
+            IBlockState state = expected.get(i);
+            assertEquals(i, Block.BLOCK_STATE_IDS.get(state), "number of " + state);
+            assertSame(state, Block.BLOCK_STATE_IDS.getByValue(i), "state at " + i);
+        }
     }
 }

@@ -250,8 +250,14 @@ public class GameData
         });
         RegistryManager.ACTIVE.registries.forEach((name, reg) -> reg.freeze());
 
-        // the id mapping is fanilized, no ids actually changed but this is a good place to tell everyone to 'bake' their stuff.
-        Loader.instance().fireRemapEvent(ImmutableMap.of(), true);
+        // freeze() replaced the registration-time seeds with derived numbering: report every id that moved so listeners can re-bake
+        Map<ResourceLocation, Map<ResourceLocation, Integer[]>> remaps = Maps.newHashMap();
+        RegistryManager.ACTIVE.registries.forEach((name, reg) ->
+        {
+            if (!reg.lastRenumber().isEmpty())
+                remaps.put(name, reg.lastRenumber());
+        });
+        Loader.instance().fireRemapEvent(remaps, true);
 
         FMLLog.log.debug("All registries frozen");
     }
@@ -377,7 +383,7 @@ public class GameData
         public void onCreate(IForgeRegistryInternal<Block> owner, RegistryManager stage)
         {
             // Only the active registry's numbers are stored in the states themselves
-            owner.setSlaveMap(BLOCKSTATE_TO_ID, new BlockStateIdMap(owner, stage == RegistryManager.ACTIVE));
+            owner.setSlaveMap(BLOCKSTATE_TO_ID, new BlockStateIdMap((ForgeRegistry<Block>) owner, stage == RegistryManager.ACTIVE));
             final ClearableObjectIntIdentityMap<IBlockState> idMap = new ClearableObjectIntIdentityMap<IBlockState>()
             {
                 @SuppressWarnings("deprecation")
@@ -412,8 +418,9 @@ public class GameData
     }
 
     private static final Object BIOME_LOW_BYTE_LOCK = new Object();
+    private record BiomeLowByteTable(int[][] ids, int generation) {}
     @Nullable
-    private static volatile int[][] biomeIdsByLowByte;
+    private static volatile BiomeLowByteTable biomeIdsByLowByte;
 
     /**
      * Ids of the active biome registry whose low byte is {@code lowByte}, ascending: the biomes a byte written into
@@ -421,28 +428,30 @@ public class GameData
      */
     public static int[] getBiomeIdsWithLowByte(int lowByte)
     {
-        int[][] table = biomeIdsByLowByte;
-        if (table == null)
+        ForgeRegistry<Biome> biomes = RegistryManager.ACTIVE.getRegistry(BIOMES);
+        BiomeLowByteTable cached = biomeIdsByLowByte;
+        if (cached == null || cached.generation != biomes.generation())
         {
             synchronized (BIOME_LOW_BYTE_LOCK)
             {
-                table = biomeIdsByLowByte;
-                if (table == null)
+                cached = biomeIdsByLowByte;
+                int generation = biomes.generation();
+                if (cached == null || cached.generation != generation)
                 {
                     List<List<Integer>> lists = new ArrayList<>(256);
                     for (int i = 0; i < 256; i++)
                         lists.add(new ArrayList<>());
-                    ForgeRegistry<Biome> biomes = RegistryManager.ACTIVE.getRegistry(BIOMES);
                     for (Biome biome : biomes) // in id order, so each list is ascending
                         lists.get(biomes.getID(biome) & 0xFF).add(biomes.getID(biome));
-                    table = new int[256][];
+                    int[][] table = new int[256][];
                     for (int i = 0; i < 256; i++)
                         table[i] = lists.get(i).stream().mapToInt(Integer::intValue).toArray();
-                    biomeIdsByLowByte = table;
+                    cached = new BiomeLowByteTable(table, generation);
+                    biomeIdsByLowByte = cached;
                 }
             }
         }
-        return table[lowByte & 0xFF];
+        return cached.ids[lowByte & 0xFF];
     }
 
     private static void invalidateBiomeIdsByLowByte()

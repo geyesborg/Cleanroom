@@ -25,6 +25,7 @@ import java.util.BitSet;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -83,6 +84,10 @@ public class ForgeRegistry<V extends IForgeRegistryEntry<V>> implements IForgeRe
     private final boolean allowOverrides;
     private final boolean isModifiable;
     private int nextSeed = 0;
+    /** Bumped on every structural change; anything that cached an iteration of this registry checks it. */
+    private int generation;
+    /** Entries whose id the last renumber() moved: name -> {old id, new id}, the FMLModIdMappingEvent shape. */
+    private Map<ResourceLocation, Integer[]> lastRenumber = Collections.emptyMap();
 
     private V defaultValue = null;
     boolean isFrozen = false;
@@ -363,6 +368,7 @@ public class ForgeRegistry<V extends IForgeRegistryEntry<V>> implements IForgeRe
 
         this.names.put(key, value);
         this.ids.put(idToUse, value);
+        this.generation++;
         this.owners.put(new OverrideOwner(owner == null ? key.getNamespace() : owner, key), value);
 
         if (isDelegated)
@@ -552,6 +558,7 @@ public class ForgeRegistry<V extends IForgeRegistryEntry<V>> implements IForgeRe
         //Needs to be below add so that dummies are persisted
         this.dummies.clear();
         from.dummies.forEach(this::addDummy);
+        this.generation++;
     }
 
 
@@ -577,6 +584,7 @@ public class ForgeRegistry<V extends IForgeRegistryEntry<V>> implements IForgeRe
         this.nextSeed = 0;
         this.byId = null;
         this.idOf = null;
+        this.generation++;
     }
 
     @Override
@@ -597,6 +605,7 @@ public class ForgeRegistry<V extends IForgeRegistryEntry<V>> implements IForgeRe
 
             if (DEBUG)
                 FMLLog.log.trace("Registry {} remove: {} {}", this.superType.getSimpleName(), key, id);
+            this.generation++;
         }
 
         return value;
@@ -628,6 +637,17 @@ public class ForgeRegistry<V extends IForgeRegistryEntry<V>> implements IForgeRe
         this.isFrozen = false;
         this.byId = null;
         this.idOf = null;
+        this.generation++;
+    }
+
+    int generation()
+    {
+        return generation;
+    }
+
+    Map<ResourceLocation, Integer[]> lastRenumber()
+    {
+        return lastRenumber;
     }
 
     /**
@@ -639,6 +659,17 @@ public class ForgeRegistry<V extends IForgeRegistryEntry<V>> implements IForgeRe
     void renumber(RegistryManager vanilla)
     {
         IdentityHashMap<V, Integer> idOf = derivedIds(vanilla);
+        Map<ResourceLocation, Integer[]> renumbered = new HashMap<ResourceLocation, Integer[]>();
+        for (Entry<ResourceLocation, V> entry : this.names.entrySet())
+        {
+            int newId = idOf.get(entry.getValue());
+            int oldId = getID(entry.getValue()); // still the seed or previous derived numbering
+            if (oldId != newId)
+            {
+                renumbered.put(entry.getKey(), new Integer[] { oldId, newId });
+            }
+        }
+        this.lastRenumber = renumbered;
         int size = this.names.size();
         @SuppressWarnings("unchecked")
         V[] byId = (V[])Array.newInstance(this.superType, size);
@@ -648,6 +679,7 @@ public class ForgeRegistry<V extends IForgeRegistryEntry<V>> implements IForgeRe
         }
         this.byId = byId;
         this.idOf = idOf;
+        this.generation++; // after the arrays are in place, so a cache rebuilt now sees the new order
 
         ResourceLocation regName = this.stage.getName(this);
         for (int i = 0; i < size; i++)
