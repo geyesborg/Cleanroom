@@ -397,6 +397,7 @@ and whether any of it beats what is here. Two small borrowings; nothing structur
 | **Bedrock** | Block network id = FNV1a-32 of the canonical state NBT: no id sync at all. Costs 5 bytes per id on the wire vs 1–2, admits collisions (`unknown` = -2 special case); PocketMine declined it for bandwidth | Same goal (no id sync at connect), different route: dense ids plus one verification hash, 1–2 byte ids, no collision risk. Not adopting. |
 | **REID / JEID** | 1.13 chunk format in 1.12; int biome array; 49 per-mod mixins; since v2.3 a `BiomeApi.updateBiome(chunk, pos, id)` so mods stop casting internals | Same format; the 49 mixins become one generic transformer; `getBiomeIds().set` is the API. REID handles CubicChunks' 3D biomes by y-level: CubicChunks is a real consumer of the `(x, y, z)` biome API, which supports the readiness constraint. |
 | **NEID** | `Blocks16`: 16-bit block ids | A 65535 cap. Nothing to take. |
+| **GTNH NotEnoughIDs / EndlessIDs (1.7.10)** | Mixin coremods that widen every field in place: blocks/items to 2^24, biomes/potions/DataWatcher to 65,536, metadata to 16 bits; chunk NBT pre-processed to their layout at load. Mods that touch a widened field need a per-mod patch; EndlessIDs crashes with a link to its repo when a worldgen mod calls an old method. (Angelica is GTNH's OptiFine replacement and lwjgl3ify the modern-Java layer; neither touches IDs.) | Still limits, 24-bit because that is what their chunk layout holds; a name-based chunk has no width to run out of. Their multiplayer bug (PR #9: a packet byte count lost half a byte after the metadata widening, dedicated server only) is the class of bug field-widening produces and name-based formats cannot. Their biome-mutation trap (vanilla 1.7 mutations at `id + 128`; their offset-reservation system was disabled as unstable) does not exist in 1.12, which uses `Biome.getMutationForBiome` by object, but it motivates an audit for numeric-offset conventions. On unpatchable mods, three teams chose three answers: EndlessIDs crashes, REID hand-patches 49 mods, this design degrades to a warning and fixes the common form generically with ASM. Nothing to adopt. |
 
 ## What this removes
 
@@ -521,6 +522,8 @@ To do:
 - [ ] Stop writing `FML Registries`; read it once on first load of an old world to build the legacy maps.
 - [ ] `RegistrySync.local`: skip registries with no non-`minecraft` entries.
 - [ ] Audit Cleanroom patches for any other saved numeric registry ID.
+- [ ] Audit vanilla/Forge 1.12 code for numeric-offset conventions on registry ids (`+ 128` biome mutations
+      are gone in 1.12, but check for any arithmetic on an id that assumes vanilla's layout).
 - [ ] Metadata as a compatibility view only: `getStateFromMeta`/`getMetaFromState` stay for mods, nothing
       internal uses `id << 4 | meta` except the legacy chunk reader.
 - [ ] `/cleanroom ids`: registry sizes and the owning mod per name range. (Optional.)
