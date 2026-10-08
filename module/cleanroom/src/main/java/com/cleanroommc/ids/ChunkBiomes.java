@@ -1,5 +1,6 @@
 package com.cleanroommc.ids;
 
+import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
 import net.minecraft.nbt.NBTTagString;
@@ -13,8 +14,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * A chunk's biomes as full runtime ids, one per x/z column ({@code z << 4 | x}), {@link #UNSET} where not generated.
@@ -42,6 +41,9 @@ public final class ChunkBiomes {
     private final int[] ids = new int[SIZE];
 
     public ChunkBiomes(Chunk chunk, byte[] view) {
+        if (view.length != SIZE) {
+            throw new IllegalArgumentException("Chunk biome views need " + SIZE + " bytes, got " + view.length + ".");
+        }
         this.chunk = chunk;
         this.view = view;
         Arrays.fill(ids, UNSET);
@@ -89,6 +91,9 @@ public final class ChunkBiomes {
 
     /** Old-format bytes, which are full ids (worlds from before the format held at most 256 biomes). */
     public void setLegacy(byte[] bytes) {
+        if (bytes.length != SIZE) {
+            throw new IllegalArgumentException("Legacy chunk biomes need " + SIZE + " bytes, got " + bytes.length + ".");
+        }
         int[] newIds = new int[SIZE];
         for (int i = 0; i < SIZE; i++) {
             newIds[i] = bytes[i] == (byte) 0xFF ? UNSET : bytes[i] & 0xFF;
@@ -145,30 +150,44 @@ public final class ChunkBiomes {
 
     public void writeNBT(NBTTagCompound chunkTag) {
         sync();
-        Map<Integer, Integer> indexOf = new HashMap<>();
+        Int2IntOpenHashMap indexOf = new Int2IntOpenHashMap();
+        indexOf.defaultReturnValue(-1);
         NBTTagList palette = new NBTTagList();
-        byte[] indices = new byte[SIZE];
+        byte[] indices = null;
         for (int i = 0; i < SIZE; i++) {
-            Integer index = indexOf.get(ids[i]);
-            if (index == null) {
+            int index = indexOf.get(ids[i]);
+            if (index < 0) {
                 index = indexOf.size();
                 indexOf.put(ids[i], index);
                 Biome biome = ids[i] == UNSET ? null : Biome.getBiome(ids[i]);
                 ResourceLocation name = biome == null ? null : biome.getRegistryName();
                 palette.appendTag(new NBTTagString(name == null ? "" : name.toString()));
             }
-            indices[i] = (byte) (int) index;
+            if (indices == null && index != 0) {
+                indices = new byte[SIZE];
+            }
+            if (indices != null) {
+                indices[i] = (byte) index;
+            }
         }
         chunkTag.setTag(PALETTE, palette);
-        if (palette.tagCount() > 1) {
+        if (indices != null) {
             chunkTag.setByteArray(INDICES, indices);
+        } else {
+            chunkTag.removeTag(INDICES);
         }
     }
 
     /** Reads either format; returns false when the chunk has no biome data. */
     public boolean readNBT(NBTTagCompound chunkTag) {
-        if (chunkTag.hasKey(PALETTE, 9)) {
-            NBTTagList palette = chunkTag.getTagList(PALETTE, 8);
+        if (chunkTag.hasKey(PALETTE)) {
+            if (!(chunkTag.getTag(PALETTE) instanceof NBTTagList palette)
+                    || palette.tagCount() > 0 && palette.getTagType() != 8) {
+                throw corrupt("has an invalid " + PALETTE + "; expected a list of biome names");
+            }
+            if (palette.tagCount() > SIZE) {
+                throw corrupt("has " + palette.tagCount() + " biome palette entries for " + SIZE + " columns");
+            }
             int[] byIndex = new int[palette.tagCount()];
             for (int i = 0; i < byIndex.length; i++) {
                 String name = palette.getStringTagAt(i);
@@ -197,11 +216,15 @@ public final class ChunkBiomes {
             setAll(newIds);
             return true;
         }
-        if (chunkTag.hasKey("Biomes", 7)) {
-            byte[] legacy = chunkTag.getByteArray("Biomes");
-            if (legacy.length == SIZE) {
-                setLegacy(legacy);
+        if (chunkTag.hasKey("Biomes")) {
+            if (!chunkTag.hasKey("Biomes", 7)) {
+                throw corrupt("has legacy Biomes data that is not a byte array");
             }
+            byte[] legacy = chunkTag.getByteArray("Biomes");
+            if (legacy.length != SIZE) {
+                throw corrupt("has " + legacy.length + " legacy biome bytes instead of " + SIZE);
+            }
+            setLegacy(legacy);
             return true;
         }
         return false;

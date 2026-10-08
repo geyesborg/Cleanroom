@@ -6,14 +6,30 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class IdFormatContainerTest {
     @Test
+    public void rejectsExperimentalPeersWithTheOldPacketLayout() {
+        assertFalse(IdFormatContainer.checkRemote(Map.of(IdFormatContainer.MOD_ID, "1"), Side.SERVER));
+        assertFalse(IdFormatContainer.checkRemote(Map.of(IdFormatContainer.MOD_ID, "1"), Side.CLIENT));
+    }
+
+    @Test
+    public void advertisesTheNewNetworkLayoutWithoutChangingTheSaveFormat() {
+        assertTrue(IdFormatContainer.checkRemote(Map.of(IdFormatContainer.MOD_ID, "2"), Side.SERVER));
+        assertTrue(IdFormatContainer.checkRemote(Map.of(IdFormatContainer.MOD_ID, "2"), Side.CLIENT));
+        IdFormatContainer container = new IdFormatContainer();
+        assertEquals("2", container.getMetadata().version);
+        assertEquals("1", container.getDataForWriting(null, null).getString("Format"));
+    }
+
+    @Test
     public void acceptsTheSameFormat() {
-        assertTrue(IdFormatContainer.checkRemote(Map.of(IdFormatContainer.MOD_ID, IdFormatContainer.FORMAT, "forge", "14.23.5.2847"), Side.SERVER));
-        assertTrue(IdFormatContainer.checkRemote(Map.of(IdFormatContainer.MOD_ID, IdFormatContainer.FORMAT), Side.CLIENT));
+        assertTrue(IdFormatContainer.checkRemote(Map.of(IdFormatContainer.MOD_ID, IdFormatContainer.NETWORK_FORMAT, "forge", "14.23.5.2847"), Side.SERVER));
+        assertTrue(IdFormatContainer.checkRemote(Map.of(IdFormatContainer.MOD_ID, IdFormatContainer.NETWORK_FORMAT), Side.CLIENT));
     }
 
     @Test

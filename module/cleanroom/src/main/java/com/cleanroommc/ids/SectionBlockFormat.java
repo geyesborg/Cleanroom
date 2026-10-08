@@ -5,7 +5,6 @@ import it.unimi.dsi.fastutil.objects.Reference2IntOpenHashMap;
 import net.minecraft.block.Block;
 import net.minecraft.block.properties.IProperty;
 import net.minecraft.block.state.IBlockState;
-import net.minecraft.init.Blocks;
 import net.minecraft.nbt.NBTBase;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagIntArray;
@@ -73,11 +72,24 @@ public final class SectionBlockFormat {
     }
 
     public static boolean isPaletted(NBTTagCompound chunk) {
-        return chunk.hasKey(CHUNK_PALETTE, 9);
+        if (!chunk.hasKey(CHUNK_PALETTE)) {
+            return false;
+        }
+        chunkPaletteTag(chunk);
+        return true;
+    }
+
+    private static NBTTagList chunkPaletteTag(NBTTagCompound chunk) {
+        NBTBase tag = chunk.getTag(CHUNK_PALETTE);
+        if (!(tag instanceof NBTTagList list) || list.tagCount() > 0 && list.getTagType() != 8) {
+            throw new IllegalStateException("Chunk " + chunk.getInteger("xPos") + ", " + chunk.getInteger("zPos")
+                    + " has an invalid " + CHUNK_PALETTE + "; expected a list of block-state strings.");
+        }
+        return list;
     }
 
     public static IBlockState[] readChunkPalette(NBTTagCompound chunk) {
-        NBTTagList list = chunk.getTagList(CHUNK_PALETTE, 8);
+        NBTTagList list = chunkPaletteTag(chunk);
         IBlockState[] states = new IBlockState[list.tagCount()];
         for (int i = 0; i < states.length; i++) {
             states[i] = parse(list.getStringTagAt(i));
@@ -118,6 +130,7 @@ public final class SectionBlockFormat {
         }
         section.setTag(PALETTE, new NBTTagIntArray(palette));
         if (entries.length == 1) {
+            section.removeTag(STATES);
             return;
         }
         int bits = bitsFor(entries.length);
@@ -150,7 +163,7 @@ public final class SectionBlockFormat {
             entries[i] = chunkPalette[palette[i]];
         }
         if (entries.length == 1) {
-            if (entries[0] != Blocks.AIR.getDefaultState()) {
+            if (!data.loadLocalPalette(entries, 4)) {
                 for (int i = 0; i < SIZE; i++) {
                     data.set(i & 15, i >> 8, i >> 4 & 15, entries[0]);
                 }
@@ -163,18 +176,25 @@ public final class SectionBlockFormat {
             throw corrupt(section, "has " + entries.length + " palette entries but no " + longCount(bits) + "-long " + STATES + " array");
         }
         long[] longs = longArray.getLongArray();
+        int[] values = null;
+        if (bits == 4) {
+            checkNibbles(longs, entries.length, section);
+        } else {
+            values = unpack(longs, bits);
+            for (int value : values) {
+                if (value >= entries.length) {
+                    throw corrupt(section, "refers to palette entry " + value + " of " + entries.length);
+                }
+            }
+        }
         // false: the palette can't take the entries in saved order (no air first, or more than 256 of them)
         boolean local = data.loadLocalPalette(entries, bits);
         if (local && bits == 4) {
-            checkNibbles(longs, entries.length, section);
             System.arraycopy(longs, 0, data.getRawStorage().getBackingLongArray(), 0, longs.length);
             return;
         }
-        int[] values = unpack(longs, bits);
-        for (int value : values) {
-            if (value >= entries.length) {
-                throw corrupt(section, "refers to palette entry " + value + " of " + entries.length);
-            }
+        if (values == null) {
+            values = unpack(longs, bits);
         }
         BitArray storage = data.getRawStorage();
         for (int i = 0; i < SIZE; i++) {

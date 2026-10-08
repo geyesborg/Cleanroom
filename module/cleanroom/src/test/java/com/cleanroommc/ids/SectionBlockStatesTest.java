@@ -4,6 +4,9 @@ import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.init.Blocks;
 import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.nbt.NBTTagInt;
+import net.minecraft.nbt.NBTTagList;
+import net.minecraft.nbt.NBTTagLongArray;
 import net.minecraft.world.chunk.BlockStateContainer;
 import net.minecraftforge.fml.common.registry.ForgeTestRunner;
 import net.minecraftforge.fml.common.registry.MinecraftTestHarness;
@@ -15,6 +18,8 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /** The name format and section storage round-trip every vanilla block state. */
 @ForgeTestRunner.Isolated
@@ -30,6 +35,53 @@ public class SectionBlockStatesTest {
             states.addAll(block.getBlockState().getValidStates());
         }
         return states;
+    }
+
+    @Test
+    public void uniformAirClearsAReusedContainer() {
+        BlockStateContainer data = new BlockStateContainer();
+        data.set(3, 2, 1, Blocks.STONE.getDefaultState());
+        NBTTagCompound section = new NBTTagCompound();
+        section.setIntArray(SectionBlockFormat.PALETTE, new int[] { 0 });
+        SectionBlockFormat.read(section, data, new IBlockState[] { Blocks.AIR.getDefaultState() });
+        for (int i = 0; i < 4096; i++) {
+            assertSame(Blocks.AIR.getDefaultState(), data.get(i & 15, i >> 8, i >> 4 & 15));
+        }
+    }
+
+    @Test
+    public void badIndicesDoNotClearTheExistingContainer() {
+        BlockStateContainer data = new BlockStateContainer();
+        data.set(0, 0, 0, Blocks.STONE.getDefaultState());
+        NBTTagCompound section = new NBTTagCompound();
+        section.setIntArray(SectionBlockFormat.PALETTE, new int[] { 0, 1 });
+        long[] packed = new long[SectionBlockFormat.longCount(4)];
+        packed[0] = 2;
+        section.setTag(SectionBlockFormat.STATES, new NBTTagLongArray(packed));
+        assertThrows(IllegalStateException.class, () -> SectionBlockFormat.read(section, data,
+                new IBlockState[] { Blocks.AIR.getDefaultState(), Blocks.STONE.getDefaultState() }));
+        assertSame(Blocks.STONE.getDefaultState(), data.get(0, 0, 0));
+    }
+
+    @Test
+    public void malformedPaletteTagsAreNotTreatedAsLegacy() {
+        NBTTagCompound chunk = new NBTTagCompound();
+        assertFalse(SectionBlockFormat.isPaletted(chunk));
+        chunk.setInteger(SectionBlockFormat.CHUNK_PALETTE, 1);
+        assertThrows(IllegalStateException.class, () -> SectionBlockFormat.isPaletted(chunk));
+        assertThrows(IllegalStateException.class, () -> SectionBlockFormat.readChunkPalette(chunk));
+        NBTTagList wrongEntries = new NBTTagList();
+        wrongEntries.appendTag(new NBTTagInt(0));
+        chunk.setTag(SectionBlockFormat.CHUNK_PALETTE, wrongEntries);
+        assertThrows(IllegalStateException.class, () -> SectionBlockFormat.readChunkPalette(chunk));
+    }
+
+    @Test
+    public void uniformWriteRemovesOldPackedStates() {
+        NBTTagCompound section = new NBTTagCompound();
+        section.setTag(SectionBlockFormat.STATES, new NBTTagLongArray(new long[SectionBlockFormat.longCount(4)]));
+        SectionBlockFormat.write(new BlockStateContainer(), section, new SectionBlockFormat.ChunkPalette());
+        assertFalse(section.hasKey(SectionBlockFormat.STATES));
     }
 
     @Test

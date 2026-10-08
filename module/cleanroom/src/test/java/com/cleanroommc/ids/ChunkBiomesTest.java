@@ -2,10 +2,15 @@ package com.cleanroommc.ids;
 
 import net.minecraft.init.Biomes;
 import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.nbt.NBTTagInt;
+import net.minecraft.nbt.NBTTagList;
+import net.minecraft.nbt.NBTTagString;
+import net.minecraft.util.ResourceLocation;
 import net.minecraft.world.biome.Biome;
 import net.minecraft.world.chunk.Chunk;
 import net.minecraftforge.fml.common.registry.ForgeTestRunner;
 import net.minecraftforge.fml.common.registry.MinecraftTestHarness;
+import net.minecraftforge.fml.common.registry.ForgeRegistries;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -13,6 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @ForgeTestRunner.Isolated
 public class ChunkBiomesTest {
@@ -23,6 +29,114 @@ public class ChunkBiomesTest {
 
     private static Chunk chunk() {
         return new Chunk(null, 3, -2);
+    }
+
+    @Test
+    public void byteViewsRequireExactlyOneChunkOfColumns() {
+        for (int size : new int[] { 0, 255, 257 }) {
+            assertThrows(IllegalArgumentException.class, () -> new ChunkBiomes(chunk(), new byte[size]));
+            ChunkBiomes biomes = chunk().getBiomeIds();
+            biomes.set(0, Biome.getIdForBiome(Biomes.DESERT));
+            int[] before = biomes.copy();
+            assertThrows(IllegalArgumentException.class, () -> biomes.setLegacy(new byte[size]));
+            assertArrayEquals(before, biomes.copy());
+        }
+    }
+
+    @Test
+    public void oversizedPaletteIsRejectedWithoutChangingBiomes() {
+        ChunkBiomes biomes = chunk().getBiomeIds();
+        biomes.set(0, Biome.getIdForBiome(Biomes.DESERT));
+        int[] before = biomes.copy();
+        NBTTagList palette = new NBTTagList();
+        for (int i = 0; i < 257; i++) palette.appendTag(new NBTTagString(""));
+        NBTTagCompound tag = new NBTTagCompound();
+        tag.setTag(ChunkBiomes.PALETTE, palette);
+        tag.setByteArray(ChunkBiomes.INDICES, new byte[256]);
+        assertThrows(IllegalStateException.class, () -> biomes.readNBT(tag));
+        assertArrayEquals(before, biomes.copy());
+    }
+
+    private static NBTTagCompound referenceNBT(int[] ids) {
+        var indexOf = new java.util.HashMap<Integer, Integer>();
+        NBTTagList palette = new NBTTagList();
+        byte[] indices = new byte[256];
+        for (int i = 0; i < ids.length; i++) {
+            Integer index = indexOf.get(ids[i]);
+            if (index == null) {
+                index = indexOf.size();
+                indexOf.put(ids[i], index);
+                Biome biome = ids[i] == ChunkBiomes.UNSET ? null : Biome.getBiome(ids[i]);
+                palette.appendTag(new NBTTagString(biome == null ? "" : biome.getRegistryName().toString()));
+            }
+            indices[i] = index.byteValue();
+        }
+        NBTTagCompound tag = new NBTTagCompound();
+        tag.setTag(ChunkBiomes.PALETTE, palette);
+        if (palette.tagCount() > 1) tag.setByteArray(ChunkBiomes.INDICES, indices);
+        return tag;
+    }
+
+    @Test
+    public void serializationMatchesThePreviousLayoutThroughAll256Indices() {
+        int[] wide = new int[256];
+        for (int i = 0; i < wide.length; i++) {
+            Biome biome = new Biome(new Biome.BiomeProperties("palette_" + i)) {};
+            biome.setRegistryName(new ResourceLocation("wideids_test", "palette_" + i));
+            ForgeRegistries.BIOMES.register(biome);
+            wide[i] = Biome.getIdForBiome(biome);
+        }
+        assertTrue(java.util.Arrays.stream(wide).anyMatch(id -> id > 255));
+        ChunkBiomes biomes = chunk().getBiomeIds();
+        for (int distinct : new int[] { 1, 2, 16, 127, 128, 255, 256 }) {
+            int[] ids = new int[256];
+            for (int i = 0; i < ids.length; i++) ids[i] = wide[i % distinct];
+            biomes.setAll(ids);
+            NBTTagCompound actual = new NBTTagCompound();
+            biomes.writeNBT(actual);
+            assertEquals(referenceNBT(ids), actual, "palette size " + distinct);
+            ChunkBiomes back = chunk().getBiomeIds();
+            assertTrue(back.readNBT(actual));
+            assertArrayEquals(ids, back.copy());
+        }
+        wide[0] = ChunkBiomes.UNSET;
+        biomes.setAll(wide);
+        NBTTagCompound mixed = new NBTTagCompound();
+        biomes.writeNBT(mixed);
+        assertEquals(referenceNBT(wide), mixed);
+    }
+
+    @Test
+    public void corruptLegacyArrayIsRejectedWithoutReplacingBiomes() {
+        ChunkBiomes biomes = chunk().getBiomeIds();
+        biomes.set(0, Biome.getIdForBiome(Biomes.DESERT));
+        int[] before = biomes.copy();
+        NBTTagCompound tag = new NBTTagCompound();
+        tag.setByteArray("Biomes", new byte[255]);
+        assertThrows(IllegalStateException.class, () -> biomes.readNBT(tag));
+        assertArrayEquals(before, biomes.copy());
+    }
+
+    @Test
+    public void malformedPaletteDoesNotFallThroughToLegacyData() {
+        ChunkBiomes biomes = chunk().getBiomeIds();
+        NBTTagCompound tag = new NBTTagCompound();
+        tag.setInteger(ChunkBiomes.PALETTE, 1);
+        tag.setByteArray("Biomes", new byte[256]);
+        assertThrows(IllegalStateException.class, () -> biomes.readNBT(tag));
+        NBTTagList wrongEntries = new NBTTagList();
+        wrongEntries.appendTag(new NBTTagInt(0));
+        tag.setTag(ChunkBiomes.PALETTE, wrongEntries);
+        assertThrows(IllegalStateException.class, () -> biomes.readNBT(tag));
+    }
+
+    @Test
+    public void uniformWriteRemovesOldBiomeIndices() {
+        ChunkBiomes biomes = chunk().getBiomeIds();
+        NBTTagCompound tag = new NBTTagCompound();
+        tag.setByteArray(ChunkBiomes.INDICES, new byte[256]);
+        biomes.writeNBT(tag);
+        assertFalse(tag.hasKey(ChunkBiomes.INDICES));
     }
 
     @Test

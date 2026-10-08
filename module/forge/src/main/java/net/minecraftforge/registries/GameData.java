@@ -114,7 +114,7 @@ public class GameData
     private static final int MAX_ENCHANTMENT_ID = Integer.MAX_VALUE >> 5; // Cleanroom: ItemStack NBT widens past a short (was Short.MAX_VALUE - 1)
     private static final int MAX_ENTITY_ID = Integer.MAX_VALUE >> 5; // Varint (SPacketSpawnMob)
     private static final int MAX_RECIPE_ID = Integer.MAX_VALUE >> 5; // Varint CPacketRecipeInfo/SPacketRecipeBook
-    private static final int MAX_PROFESSION_ID = 1024; //TODO: Is this serialized anywhere anymore?
+    private static final int MAX_PROFESSION_ID = Integer.MAX_VALUE >> 5; // Cleanroom: villagers save ProfessionName, sync a varint (was 1024)
     private static final int MIN_SERIALIZER_ID = 256; // Leave room for vanilla entries
     private static final int MAX_SERIALIZER_ID = Integer.MAX_VALUE >> 5; // Varint (EntityDataManager)
 

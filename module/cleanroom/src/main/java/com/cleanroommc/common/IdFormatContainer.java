@@ -34,7 +34,9 @@ import java.util.Map;
  */
 public class IdFormatContainer extends DummyModContainer implements WorldAccessContainer {
     public static final String MOD_ID = "cleanroom_ids";
-    public static final String FORMAT = "1";
+    public static final String SAVE_FORMAT = "1";
+    public static final String NETWORK_FORMAT = "2";
+    public static final String FORMAT = SAVE_FORMAT;
     private static final Logger LOGGER = LogManager.getLogger("Cleanroom");
 
     public IdFormatContainer() {
@@ -43,7 +45,7 @@ public class IdFormatContainer extends DummyModContainer implements WorldAccessC
         meta.modId = MOD_ID;
         meta.name = "Cleanroom ID format";
         meta.description = "Runtime and saved ID formats (block states, chunks, biomes, items, potions). Both sides of a connection need the same format.";
-        meta.version = FORMAT;
+        meta.version = NETWORK_FORMAT;
         meta.parent = CleanroomVersion.MOD_ID;
     }
 
@@ -61,14 +63,14 @@ public class IdFormatContainer extends DummyModContainer implements WorldAccessC
     @NetworkCheckHandler
     public static boolean checkRemote(Map<String, String> remoteMods, Side remoteSide) {
         String remote = remoteMods.get(MOD_ID);
-        if (FORMAT.equals(remote)) {
+        if (NETWORK_FORMAT.equals(remote)) {
             return true;
         }
         // Empty: FML's startup probe for vanilla peers, or a vanilla peer (FML reports that itself)
         if (remoteMods.isEmpty()) {
             return false;
         }
-        LOGGER.error("Cleanroom ID format mismatch: this side uses format {}, the {} uses {}.", FORMAT,
+        LOGGER.error("Cleanroom ID format mismatch: this side uses network format {}, the {} uses {}.", NETWORK_FORMAT,
                 remoteSide == Side.SERVER ? "server" : "client", remote == null ? "none (vanilla, Forge or an older Cleanroom)" : "format " + remote);
         return false;
     }
@@ -76,18 +78,21 @@ public class IdFormatContainer extends DummyModContainer implements WorldAccessC
     @Override
     public NBTTagCompound getDataForWriting(SaveHandler handler, WorldInfo info) {
         NBTTagCompound tag = new NBTTagCompound();
-        tag.setString("Format", FORMAT);
+        tag.setString("Format", SAVE_FORMAT);
         return tag;
     }
 
     @Override
     public void readData(SaveHandler handler, WorldInfo info, Map<String, NBTBase> propertyMap, NBTTagCompound tag) {
+        File world = handler.getWorldDirectory();
+        if (tag.hasKey("Format") && !tag.hasKey("Format", 8)) {
+            throw new IllegalStateException("World " + world.getName() + " has a non-string Cleanroom ID format in level.dat (cleanroom_ids.Format); restore level.dat from level.dat_old or a backup.");
+        }
         String saved = tag.getString("Format");
-        if (FORMAT.equals(saved)) {
+        if (SAVE_FORMAT.equals(saved)) {
             return;
         }
-        File world = handler.getWorldDirectory();
-        if (!saved.isEmpty()) {
+        if (tag.hasKey("Format")) {
             int format;
             try {
                 format = Integer.parseInt(saved);
@@ -95,23 +100,27 @@ public class IdFormatContainer extends DummyModContainer implements WorldAccessC
                 throw new IllegalStateException("World " + world.getName() + " has an unreadable Cleanroom ID format \"" + saved
                         + "\" in level.dat (cleanroom_ids.Format); restore level.dat from level.dat_old or a backup.", e);
             }
-            if (format > Integer.parseInt(FORMAT)) {
+            if (format <= 0) {
+                throw new IllegalStateException("World " + world.getName() + " has an invalid Cleanroom ID format " + saved
+                        + " in level.dat (cleanroom_ids.Format); format numbers must be positive.");
+            }
+            if (format > Integer.parseInt(SAVE_FORMAT)) {
                 throw new IllegalStateException("World " + world.getName() + " was saved with Cleanroom ID format " + saved
-                        + "; this Cleanroom reads format " + FORMAT + " and older.");
+                        + "; this Cleanroom reads format " + SAVE_FORMAT + " and older.");
             }
         }
         if (!hasChunks(world)) {
             return;
         }
-        LOGGER.info("World {} was saved before Cleanroom ID format {}: its chunks are converted as they are saved.", world.getName(), FORMAT);
+        LOGGER.info("World {} was saved before Cleanroom ID format {}: its chunks are converted as they are saved.", world.getName(), SAVE_FORMAT);
         if ("true".equals(System.getProperty("fml.doNotBackup"))) {
             LOGGER.warn("fml.doNotBackup is set: converting world {} without a backup.", world.getName());
             return;
         }
         try {
-            ZipperUtil.backupWorld(world.getName());
+            ZipperUtil.backupWorld(world);
         } catch (IOException e) {
-            throw new UncheckedIOException("Could not back up world " + world.getName() + " before converting it to Cleanroom ID format " + FORMAT + ".", e);
+            throw new UncheckedIOException("Could not back up world " + world.getName() + " before converting it to Cleanroom ID format " + SAVE_FORMAT + ".", e);
         }
     }
 
