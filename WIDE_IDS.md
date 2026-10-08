@@ -202,11 +202,20 @@ sends one **hash per registry** (the ordered names) to verify the lists match; a
 differ, which the mod-list handshake reports anyway. This replaces Forge's `RegistryData` message (name→number
 map plus dummied set) entirely.
 
-**Client-only registrations** (entries a client mod adds that the server lacks) would shift the client's
-numbers. Protocol: the server sends, per registry, the **name count N and the hash of its N ordered names**.
-The client hashes its own first N names. Match, and any entries the client has beyond N are client-only: they
-keep their positions after N, so everything the server has agrees on both sides. Mismatch is a real difference
-in the mod sets and the connection is refused with the registry named. No dummies.
+**Protocol.** The server sends, per synced registry, the **name count N and a hash of its N ordered names**
+(SHA-256 over each name's UTF-8 bytes followed by a zero byte, in id order; first 8 bytes as a long). The
+client hashes its own first N names in the same registry. Match: numbers agree for everything the server
+has. Mismatch, or a server registry the client lacks: refused, with the registry and both counts in the
+disconnect message. A registry the client has and the server does not is client-only and ignored. The
+client never renumbers itself to the server: there is nothing to renumber to. No dummies, no
+`injectSnapshot` on connect.
+
+**Client-only registrations in a synced registry are refused**, not appended. An entry a client-side mod adds
+to blocks/items/etc. sorts by name among the server's entries and shifts them, and the client cannot tell
+which names are its own without the server's list. Forge dummied such entries; they were never usable. A
+later refinement can have the client fetch the server's name list on mismatch to report the exact missing
+names and to append genuine client-only extras; that is a round-trip only on failure. Not in the first
+version.
 
 **Overrides** (two mods registering one name) do not need syncing: an override changes which object is behind
 a name, not the order of names, so the hash and the numbers are unaffected. If only one side has the overriding
@@ -222,7 +231,7 @@ Entity types have two numberings today: vanilla's `EntityList` (a `RegistryNames
 the name); it is out of scope and should not be "fixed".
 
 Numbers only have to match per connection, not across sessions. The `cleanroom_ids` network format number
-guards the packet layouts (currently 2).
+guards the packet layouts and the handshake (3 once the hash handshake lands; 2 before).
 
 Packets that carry IDs use varints or ints (block states, entity types, potions, enchantments, biomes, items,
 `SPacketWindowProperty` values). Chunk-packet biomes are 256 varints.
@@ -483,8 +492,10 @@ To do:
 - [ ] Derived indices (block states, block→item, entity class→entry) as typed classes rebuilt on freeze.
 - [ ] Registry lookup by `ResourceLocation` key; class lookup as a shim.
 - [ ] Callbacks once after all registrations, in registry order.
-- [ ] Login sync: per-registry count + hash of the ordered names; client-only entries keep positions past N;
-      drop `RegistryData`; overrides not synced.
+- [x] Login sync: one `RegistryHashes` message (per-registry count + SHA-256 of the ordered names) replaces
+      `RegistryData`; the client verifies and never renumbers to the server (`RegistrySync`). Network format 3.
+      Interim: a server world holding Forge dummies hashes their names, so no client can join it until the
+      manifest replaces dummies.
 - [ ] Recipes and data serializers on the same numbering; `EntityList.getID` delegates to the Forge registry.
 - [ ] Stop writing `FML Registries`; read it once on first load of an old world to build the legacy maps.
 - [ ] Audit Cleanroom patches for any other saved numeric registry ID.

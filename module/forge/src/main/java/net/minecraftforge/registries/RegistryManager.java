@@ -43,7 +43,7 @@ public class RegistryManager
 
     BiMap<ResourceLocation, ForgeRegistry<? extends IForgeRegistryEntry<?>>> registries = HashBiMap.create();
     private BiMap<Class<? extends IForgeRegistryEntry<?>>, ResourceLocation> superTypes = HashBiMap.create();
-    private Set<ResourceLocation> persisted = Sets.newHashSet();
+    Set<ResourceLocation> persisted = Sets.newHashSet();
     private final String name;
 
     public RegistryManager(String name)

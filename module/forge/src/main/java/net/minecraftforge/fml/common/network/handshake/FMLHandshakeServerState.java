@@ -22,20 +22,16 @@ package net.minecraftforge.fml.common.network.handshake;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Map.Entry;
 import java.util.function.Consumer;
 
-import net.minecraft.util.ResourceLocation;
 import net.minecraftforge.fml.common.FMLLog;
 import net.minecraftforge.fml.common.Loader;
 import net.minecraftforge.fml.common.network.NetworkRegistry;
 import net.minecraftforge.fml.common.network.internal.FMLMessage;
 import net.minecraftforge.fml.common.network.internal.FMLNetworkHandler;
 import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.registries.ForgeRegistry;
 import net.minecraftforge.registries.RegistryManager;
+import net.minecraftforge.registries.RegistrySync;
 
 enum FMLHandshakeServerState implements IHandshakeState<FMLHandshakeServerState>
 {
@@ -86,13 +82,7 @@ enum FMLHandshakeServerState implements IHandshakeState<FMLHandshakeServerState>
             cons.accept(COMPLETE);
             if (!ctx.channel().attr(NetworkDispatcher.IS_LOCAL).get())
             {
-                Map<ResourceLocation, ForgeRegistry.Snapshot> snapshot = RegistryManager.ACTIVE.takeSnapshot(false);
-                Iterator<Map.Entry<ResourceLocation, ForgeRegistry.Snapshot>> itr = snapshot.entrySet().iterator();
-                while (itr.hasNext())
-                {
-                    Entry<ResourceLocation, ForgeRegistry.Snapshot> e = itr.next();
-                    ctx.writeAndFlush(new FMLHandshakeMessage.RegistryData(itr.hasNext(), e.getKey(), e.getValue())).addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
-                }
+                ctx.writeAndFlush(new FMLHandshakeMessage.RegistryHashes(RegistrySync.local(RegistryManager.ACTIVE, false))).addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
             }
             ctx.writeAndFlush(new FMLHandshakeMessage.HandshakeAck(ordinal())).addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
             NetworkRegistry.INSTANCE.fireNetworkHandshake(ctx.channel().attr(NetworkDispatcher.FML_DISPATCHER).get(), Side.SERVER);

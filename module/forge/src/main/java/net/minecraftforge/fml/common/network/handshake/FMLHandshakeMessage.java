@@ -23,6 +23,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -36,12 +37,11 @@ import net.minecraftforge.fml.common.ModContainer;
 import net.minecraftforge.fml.common.network.ByteBufUtils;
 import net.minecraftforge.fml.common.network.NetworkRegistry;
 import net.minecraftforge.fml.common.network.internal.FMLProxyPacket;
-import net.minecraftforge.registries.ForgeRegistry;
+import net.minecraftforge.registries.RegistrySync;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 
 public abstract class FMLHandshakeMessage {
     public static FMLProxyPacket makeCustomChannelRegistration(Set<String> channels)
@@ -171,115 +171,56 @@ public abstract class FMLHandshakeMessage {
         }
     }
 
-    public static class RegistryData extends FMLHandshakeMessage
+    public static class RegistryHashes extends FMLHandshakeMessage
     {
-        public RegistryData()
+        public RegistryHashes()
         {
 
         }
 
-        public RegistryData(boolean hasMore, ResourceLocation name, ForgeRegistry.Snapshot entry)
+        public RegistryHashes(List<RegistrySync.Entry> entries)
         {
-            this.hasMore = hasMore;
-            this.name = name;
-            this.ids = entry.ids;
-            this.dummied = entry.dummied;
-            this.overrides = entry.overrides;
+            this.entries = entries;
         }
 
-        private boolean hasMore;
-        private ResourceLocation name;
-        private Map<ResourceLocation, Integer> ids;
-        private Set<ResourceLocation> dummied;
-        private Map<ResourceLocation, String> overrides;
+        private List<RegistrySync.Entry> entries = new ArrayList<>();
 
         @Override
         public void fromBytes(ByteBuf buffer)
         {
-            this.hasMore = buffer.readBoolean();
-            this.name = new ResourceLocation(ByteBufUtils.readUTF8String(buffer));
-
-            int length = ByteBufUtils.readVarInt(buffer, 3);
-            ids = Maps.newHashMap();
+            int length = ByteBufUtils.readVarInt(buffer, 5);
+            entries = new ArrayList<>(length);
 
             for (int i = 0; i < length; i++)
             {
-                ids.put(new ResourceLocation(ByteBufUtils.readUTF8String(buffer)), ByteBufUtils.readVarInt(buffer, 3));
-            }
-
-            length = ByteBufUtils.readVarInt(buffer, 3);
-            dummied = Sets.newHashSet();
-
-            for (int i = 0; i < length; i++)
-            {
-                dummied.add(new ResourceLocation(ByteBufUtils.readUTF8String(buffer)));
-            }
-
-            length = ByteBufUtils.readVarInt(buffer, 3);
-            overrides = Maps.newHashMap();
-
-            for (int i = 0; i < length; i++)
-            {
-                overrides.put(new ResourceLocation(ByteBufUtils.readUTF8String(buffer)), ByteBufUtils.readUTF8String(buffer));
+                ResourceLocation name = new ResourceLocation(ByteBufUtils.readUTF8String(buffer));
+                int count = ByteBufUtils.readVarInt(buffer, 5);
+                long hash = buffer.readLong();
+                entries.add(new RegistrySync.Entry(name, count, hash));
             }
         }
 
         @Override
         public void toBytes(ByteBuf buffer)
         {
-            buffer.writeBoolean(this.hasMore);
-            ByteBufUtils.writeUTF8String(buffer, this.name.toString());
-
-            ByteBufUtils.writeVarInt(buffer, ids.size(), 3);
-            for (Entry<ResourceLocation, Integer> entry: ids.entrySet())
+            ByteBufUtils.writeVarInt(buffer, entries.size(), 5);
+            for (RegistrySync.Entry entry : entries)
             {
-                ByteBufUtils.writeUTF8String(buffer, entry.getKey().toString());
-                ByteBufUtils.writeVarInt(buffer, entry.getValue(), 3);
-            }
-
-            ByteBufUtils.writeVarInt(buffer, dummied.size(), 3);
-            for (ResourceLocation entry: dummied)
-            {
-                ByteBufUtils.writeUTF8String(buffer, entry.toString());
-            }
-
-            ByteBufUtils.writeVarInt(buffer, overrides.size(), 3);
-            for (Entry<ResourceLocation, String> entry: overrides.entrySet())
-            {
-                ByteBufUtils.writeUTF8String(buffer, entry.getKey().toString());
-                ByteBufUtils.writeUTF8String(buffer, entry.getValue().toString());
+                ByteBufUtils.writeUTF8String(buffer, entry.registry().toString());
+                ByteBufUtils.writeVarInt(buffer, entry.count(), 5);
+                buffer.writeLong(entry.hash());
             }
         }
 
-        public Map<ResourceLocation, Integer> getIdMap()
+        public List<RegistrySync.Entry> entries()
         {
-            return ids;
-        }
-
-        public Set<ResourceLocation> getDummied()
-        {
-            return dummied;
-        }
-
-        public Map<ResourceLocation, String> getOverrides()
-        {
-            return overrides;
-        }
-
-        public ResourceLocation getName()
-        {
-            return this.name;
-        }
-
-        public boolean hasMore()
-        {
-            return this.hasMore;
+            return entries;
         }
 
         @Override
         public String toString(Class<? extends Enum<?>> side)
         {
-            return super.toString(side) + ":"+ids.size()+" mappings";
+            return super.toString(side) + ":"+entries.size()+" registries";
         }
     }
     public static class HandshakeAck extends FMLHandshakeMessage {

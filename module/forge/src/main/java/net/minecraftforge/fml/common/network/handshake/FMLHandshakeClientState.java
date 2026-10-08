@@ -22,15 +22,9 @@ package net.minecraftforge.fml.common.network.handshake;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 
-import java.util.Map;
 import java.util.function.Consumer;
 
-import com.google.common.collect.Maps;
-import com.google.common.collect.Multimap;
-import com.google.common.util.concurrent.Futures;
-
 import net.minecraft.client.Minecraft;
-import net.minecraft.util.ResourceLocation;
 import net.minecraftforge.fml.common.FMLLog;
 import net.minecraftforge.fml.common.Loader;
 import net.minecraftforge.fml.common.network.NetworkRegistry;
@@ -38,8 +32,9 @@ import net.minecraftforge.fml.common.network.handshake.FMLHandshakeMessage.Serve
 import net.minecraftforge.fml.common.network.internal.FMLMessage;
 import net.minecraftforge.fml.common.network.internal.FMLNetworkHandler;
 import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.registries.ForgeRegistry;
 import net.minecraftforge.registries.GameData;
+import net.minecraftforge.registries.RegistryManager;
+import net.minecraftforge.registries.RegistrySync;
 
 /**
  * Packet handshake sequence manager- client side (responding to remote server)
@@ -131,39 +126,14 @@ enum FMLHandshakeClientState implements IHandshakeState<FMLHandshakeClientState>
         @Override
         public void accept(ChannelHandlerContext ctx, FMLHandshakeMessage msg, Consumer<? super FMLHandshakeClientState> cons)
         {
-            FMLHandshakeMessage.RegistryData pkt = (FMLHandshakeMessage.RegistryData)msg;
-            Map<ResourceLocation, ForgeRegistry.Snapshot> snap = ctx.channel().attr(NetworkDispatcher.FML_GAMEDATA_SNAPSHOT).get();
-            if (snap == null)
-            {
-                snap = Maps.newHashMap();
-                ctx.channel().attr(NetworkDispatcher.FML_GAMEDATA_SNAPSHOT).set(snap);
-            }
-
-            ForgeRegistry.Snapshot entry = new ForgeRegistry.Snapshot();
-            entry.ids.putAll(pkt.getIdMap());
-            entry.dummied.addAll(pkt.getDummied());
-            entry.overrides.putAll(pkt.getOverrides());
-            snap.put(pkt.getName(), entry);
-
-            if (pkt.hasMore())
-            {
-                cons.accept(WAITINGSERVERCOMPLETE);
-                FMLLog.log.debug("Received Mod Registry mapping for {}: {} IDs {} overrides {} dummied", pkt.getName(), entry.ids.size(), entry.overrides.size(), entry.dummied.size());
-                return;
-            }
-
-            ctx.channel().attr(NetworkDispatcher.FML_GAMEDATA_SNAPSHOT).set(null);
-
-            //Do the remapping on the Client's thread in case things are reset while the client is running. We stall the network thread until this is finished which can cause the IO thread to time out... Not sure if we can do anything about that.
-            final Map<ResourceLocation, ForgeRegistry.Snapshot> snap_f = snap;
-            Multimap<ResourceLocation, ResourceLocation> locallyMissing = Futures.getUnchecked(Minecraft.getMinecraft().addScheduledTask(() -> GameData.injectSnapshot(snap_f, false, false)));
-            if (!locallyMissing.isEmpty())
+            FMLHandshakeMessage.RegistryHashes pkt = (FMLHandshakeMessage.RegistryHashes)msg;
+            String problem = RegistrySync.check(pkt.entries(), RegistryManager.ACTIVE);
+            if (problem != null)
             {
                 cons.accept(ERROR);
                 NetworkDispatcher dispatcher = ctx.channel().attr(NetworkDispatcher.FML_DISPATCHER).get();
-                dispatcher.rejectHandshake("Fatally missing registry entries");
-                FMLLog.log.fatal("Failed to connect to server: there are {} missing registry items", locallyMissing.size());
-                locallyMissing.asMap().forEach((key, value) ->  FMLLog.log.debug("Missing {} Entries: {}", key, value));
+                dispatcher.rejectHandshake(problem);
+                FMLLog.log.fatal("Failed to connect to server: registry mismatch\n{}", problem);
                 return;
             }
             cons.accept(PENDINGCOMPLETE);
