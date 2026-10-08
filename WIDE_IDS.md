@@ -225,10 +225,11 @@ Recipes and data serializers are Forge registries whose numbers go over the wire
 `CPacketRecipeInfo`, `EntityDataManager`); the same rule applies to them. Statistics already sync by name and
 are left alone.
 
-Entity types have two numberings today: vanilla's `EntityList` (a `RegistryNamespaced`) and Forge's
-`EntityEntry` registry wrapping it. One should remain, Forge's; `EntityList.getID` delegates to it.
-`TileEntity.REGISTRY` is also a `RegistryNamespaced` with internal numbers nobody reads (saves and packets use
-the name); it is out of scope and should not be "fixed".
+There is one numbering per type already: vanilla's `Block.REGISTRY`, `Item.REGISTRY` etc. are
+`NamespacedWrapper`s whose `getIDForObject`/`getObjectById` forward to the `ForgeRegistry`, and
+`EntityList.getID`/`getClassFromID` read the Forge entity registry directly. Derived numbering therefore
+reaches every vanilla lookup with no extra wiring (verified). `TileEntity.REGISTRY` is a plain
+`RegistryNamespaced` with internal numbers nobody reads (saves and packets use the name); out of scope.
 
 Numbers only have to match per connection, not across sessions. The `cleanroom_ids` network format number
 guards the packet layouts and the handshake (3 once the hash handshake lands; 2 before).
@@ -496,7 +497,8 @@ To do:
       `RegistryData`; the client verifies and never renumbers to the server (`RegistrySync`). Network format 3.
       Interim: a server world holding Forge dummies hashes their names, so no client can join it until the
       manifest replaces dummies.
-- [ ] Recipes and data serializers on the same numbering; `EntityList.getID` delegates to the Forge registry.
+- [x] Recipes, data serializers and entity types are `ForgeRegistry`s and vanilla's wrappers forward to them,
+      so derived numbering already covers every lookup (verified, no change needed).
 - [ ] Stop writing `FML Registries`; read it once on first load of an old world to build the legacy maps.
 - [ ] Audit Cleanroom patches for any other saved numeric registry ID.
 - [ ] Metadata as a compatibility view only: `getStateFromMeta`/`getMetaFromState` stay for mods, nothing
