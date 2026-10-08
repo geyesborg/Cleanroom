@@ -321,12 +321,19 @@ registry change still exists, and the log says the world won't load elsewhere af
 JEID/REID/NEID readers were built from those mods' source and tested with synthetic sections, not with a real
 world from them. NEID is the least certain.
 
-**`FML Registries` on first load.** We stop writing it, but an old world's chunks hold numbers that only that
-table decodes. First load **reads** `FML Registries` once to build the legacy `id << 4 | meta` state map (and
-the biome byte map) for that world, converts chunks as they save, and does not write the table back. A world
-without the table (never Forge) uses the current registries, as now.
+**The legacy id table (`LegacyIds`, built).** An old world's unconverted chunks and NBT hold the Forge-era
+numbers recorded in `level.dat` `FML` → `Registries`. Under derived numbering a modded entry's live id differs
+from its saved id, so every legacy numeric read goes through a per-world table built from that tag on load:
+chunk sections (`id << 4 | meta`), legacy and JEID biome arrays, potion `Id`, enchantment `id`, beacon
+`Primary`/`Secondary`, piston `blockId`, enderman `carried`. Saved id → saved name → live entry by name; an
+id the table lacks falls back to the live id (vanilla keeps its ids; a never-Forge world has no table); a name
+the table knows that no longer resolves is missing, never the number. The table is **preserved verbatim**
+across saves (written back under the same `Registries` key, never regenerated from live ids) because chunks
+convert lazily and the table must outlive the last unconverted one. A new world writes no `Registries`. One
+table per server process; dimensions share `level.dat`; cleared on server stop.
 
-The legacy `id << 4 | meta` state map exists only for this conversion.
+The old `BLOCKSTATE_TO_LEGACY_ID` slave map and the legacy chunk *writer* are gone; nothing writes the
+`Blocks`/`Add`/`Data` format.
 
 ## Registry internals (replacing Forge's)
 
@@ -580,7 +587,9 @@ To do:
 
 `level.dat` (unblocked by Rongmario's answer; ID-system work):
 
-- [ ] Stop writing `FML Registries`; read it once on first load of an old world for the legacy maps.
+- [x] `LegacyIds`: the saved `Registries` table decodes every legacy numeric read and is preserved verbatim;
+      new worlds write none. (Derived numbering had silently broken legacy biome/potion/enchantment decode
+      for modded entries; blocks only worked through injectSnapshot's seed ids.)
 - [ ] Remove dummies, blocked ids, `Snapshot` save/load, `injectSnapshot`'s reconciliation, `FROZEN`/`STAGING`
       and `revertToFrozen`; one registry manager.
 

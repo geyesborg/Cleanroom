@@ -23,7 +23,7 @@
 +        if (tag.hasKey("name", 8)) {
 +            return Enchantment.REGISTRY.getObject(new ResourceLocation(tag.getString("name")));
 +        }
-+        return Enchantment.getEnchantmentByID(tag.getInteger("id"));
++        return com.cleanroommc.ids.LegacyIds.enchantment(tag.getInteger("id")); // Cleanroom: a Forge-era saved id
 +    }
 +
      /** Returns the level of enchantment on the ItemStack passed. */

@@ -82,7 +82,13 @@ public final class ChunkBiomes {
         }
         int[] newIds = new int[SIZE];
         for (int i = 0; i < SIZE; i++) {
-            newIds[i] = bytes[i] == (byte) 0xFF ? UNSET : bytes[i] & 0xFF;
+            if (bytes[i] == (byte) 0xFF) {
+                newIds[i] = UNSET;
+            } else {
+                // The byte is a Forge-era saved id; resolve its name through the world's legacy table
+                Biome biome = LegacyIds.biome(bytes[i] & 0xFF);
+                newIds[i] = biome == null ? UNSET : Biome.getIdForBiome(biome);
+            }
         }
         setAll(newIds);
     }
@@ -97,12 +103,17 @@ public final class ChunkBiomes {
         }
     }
 
-    /** JEID/REID save one full biome id per column. */
+    /** JEID/REID save one full biome id per column; the ids are saved ids, resolved like {@link #setLegacy}. */
     public void setIds(int[] newIds) {
         if (newIds.length != SIZE) {
             throw new IllegalArgumentException("Chunk biomes need " + SIZE + " ids, got " + newIds.length + ".");
         }
-        setAll(newIds);
+        int[] resolved = new int[SIZE];
+        for (int i = 0; i < SIZE; i++) {
+            Biome biome = LegacyIds.biome(newIds[i]);
+            resolved[i] = biome == null ? UNSET : Biome.getIdForBiome(biome);
+        }
+        setAll(resolved);
     }
 
     /**

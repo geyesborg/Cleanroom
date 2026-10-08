@@ -44,7 +44,7 @@
                              flag1 = false;
                              break;
                          }
-@@ -249,7 +253,27 @@
+@@ -249,17 +253,37 @@
          return 65536.0;
      }
  
@@ -70,9 +70,11 @@
 +
 +    @Nullable
      private static Potion isBeaconEffect(int p_184279_0_) {
-         Potion potion = Potion.getPotionById(p_184279_0_);
+-        Potion potion = Potion.getPotionById(p_184279_0_);
++        Potion potion = com.cleanroommc.ids.LegacyIds.potion(p_184279_0_); // Cleanroom: a Forge-era saved id
          return VALID_EFFECTS.contains(potion) ? potion : null;
-@@ -258,8 +282,8 @@
+     }
+ 
      @Override
      public void readFromNBT(NBTTagCompound compound) {
          super.readFromNBT(compound);

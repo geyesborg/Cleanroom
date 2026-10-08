@@ -10,7 +10,7 @@
          }
      }
  
-@@ -166,7 +165,9 @@
+@@ -166,10 +165,12 @@
      public void readEntityFromNBT(NBTTagCompound compound) {
          super.readEntityFromNBT(compound);
          IBlockState iblockstate;
@@ -20,7 +20,11 @@
 +        } else if (compound.hasKey("carried", 8)) {
              iblockstate = Block.getBlockFromName(compound.getString("carried")).getStateFromMeta(compound.getShort("carriedData") & 65535);
          } else {
-             iblockstate = Block.getBlockById(compound.getShort("carried")).getStateFromMeta(compound.getShort("carriedData") & 65535);
+-            iblockstate = Block.getBlockById(compound.getShort("carried")).getStateFromMeta(compound.getShort("carriedData") & 65535);
++            iblockstate = com.cleanroommc.ids.LegacyIds.block(compound.getShort("carried") & 0xFFFF).getStateFromMeta(compound.getShort("carriedData") & 65535); // Cleanroom: the short is a Forge-era saved id
+         }
+ 
+         if (iblockstate == null || iblockstate.getBlock() == null || iblockstate.getMaterial() == Material.AIR) {
 @@ -267,7 +268,10 @@
  
      /** Teleport the enderman */

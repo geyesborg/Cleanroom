@@ -26,7 +26,6 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockAir;
-import net.minecraft.block.BlockObserver;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.enchantment.Enchantment;
 import net.minecraft.entity.Entity;
@@ -106,7 +105,7 @@ public class GameData
 
     private static final ResourceLocation BLOCK_TO_ITEM         = new ResourceLocation("minecraft:blocktoitemmap");
     private static final ResourceLocation BLOCKSTATE_TO_ID      = new ResourceLocation("minecraft:blockstatetoid");
-    private static final ResourceLocation BLOCKSTATE_TO_LEGACY_ID = new ResourceLocation("cleanroom:blockstatetolegacyid");
+
     private static final ResourceLocation ENTITY_CLASS_TO_ENTRY = new ResourceLocation("forge:entity_class_to_entry");
     private static final ResourceLocation SERIALIZER_TO_ENTRY   = new ResourceLocation("forge:serializer_to_entry");
 
@@ -181,16 +180,6 @@ public class GameData
     public static ObjectIntIdentityMap<IBlockState> getBlockStateIDMap()
     {
         return GameRegistry.findRegistry(Block.class).getSlaveMap(BLOCKSTATE_TO_ID, ObjectIntIdentityMap.class);
-    }
-
-    /**
-     * The pre-Cleanroom encoding, {@code block id << 4 | meta}: only for chunk data in the old Anvil format, which
-     * can't hold blocks past id 4095 or more than 16 states per block.
-     */
-    @SuppressWarnings("unchecked")
-    public static ObjectIntIdentityMap<IBlockState> getLegacyBlockStateIDMap()
-    {
-        return GameRegistry.findRegistry(Block.class).getSlaveMap(BLOCKSTATE_TO_LEGACY_ID, ObjectIntIdentityMap.class);
     }
 
     @SuppressWarnings("unchecked")
@@ -295,26 +284,6 @@ public class GameData
         FMLLog.log.debug("Reverting complete");
     }
 
-    //Lets us clear the map so we can rebuild it.
-    static class ClearableObjectIntIdentityMap<I> extends ObjectIntIdentityMap<I>
-    {
-        void clear()
-        {
-            this.identityMap.clear();
-            this.objectList.clear();
-        }
-
-        void remove(I key)
-        {
-            Integer prev = this.identityMap.remove(key);
-            if (prev != null)
-            {
-                this.objectList.set(prev, null);
-            }
-        }
-    }
-
-
     private static class BlockCallbacks implements IForgeRegistry.AddCallback<Block>, IForgeRegistry.ClearCallback<Block>, IForgeRegistry.CreateCallback<Block>, IForgeRegistry.DummyFactory<Block>
     {
         static final BlockCallbacks INSTANCE = new BlockCallbacks();
@@ -324,43 +293,6 @@ public class GameData
         public void onAdd(IForgeRegistryInternal<Block> owner, RegistryManager stage, int id, Block block, @Nullable Block oldBlock)
         {
             owner.getSlaveMap(BLOCKSTATE_TO_ID, BlockStateIdMap.class).invalidate();
-
-            @SuppressWarnings("unchecked")
-            ClearableObjectIntIdentityMap<IBlockState> blockstateMap = owner.getSlaveMap(BLOCKSTATE_TO_LEGACY_ID, ClearableObjectIntIdentityMap.class);
-
-            if (oldBlock != null)
-            {
-                for (IBlockState state : oldBlock.getBlockState().getValidStates())
-                {
-                    blockstateMap.remove(state);
-                }
-            }
-
-            if ("minecraft:tripwire".equals(block.getRegistryName().toString())) //Tripwire is crap so we have to special case whee!
-            {
-                for (int meta = 0; meta < 15; meta++)
-                    blockstateMap.put(block.getStateFromMeta(meta), id << 4 | meta);
-            }
-
-            //So, due to blocks having more in-world states then metadata allows, we have to turn the map into a semi-milti-bimap.
-            //We can do this however because the implementation of the map is last set wins. So we can add all states, then fix the meta bimap.
-            //Multiple states -> meta. But meta to CORRECT state.
-
-            final boolean[] usedMeta = new boolean[16]; //Hold a list of known meta from all states.
-            for (IBlockState state : block.getBlockState().getValidStates())
-            {
-                final int meta = block.getMetaFromState(state);
-                blockstateMap.put(state, id << 4 | meta); //Add ALL the things!
-                usedMeta[meta] = true;
-            }
-
-            for (int meta = 0; meta < 16; meta++)
-            {
-                if (block.getClass() == BlockObserver.class)
-                    continue; //Observers are bad and have non-cyclical states. So we HAVE to use the vanilla logic above.
-                if (usedMeta[meta])
-                    blockstateMap.put(block.getStateFromMeta(meta), id << 4 | meta); // Put the CORRECT thing!
-            }
 
             if (oldBlock != null)
             {
@@ -376,7 +308,6 @@ public class GameData
         public void onClear(IForgeRegistryInternal<Block> owner, RegistryManager stage)
         {
             owner.getSlaveMap(BLOCKSTATE_TO_ID, BlockStateIdMap.class).invalidate();
-            owner.getSlaveMap(BLOCKSTATE_TO_LEGACY_ID, ClearableObjectIntIdentityMap.class).clear();
         }
 
         @Override
@@ -384,21 +315,6 @@ public class GameData
         {
             // Only the active registry's numbers are stored in the states themselves
             owner.setSlaveMap(BLOCKSTATE_TO_ID, new BlockStateIdMap((ForgeRegistry<Block>) owner, stage == RegistryManager.ACTIVE));
-            final ClearableObjectIntIdentityMap<IBlockState> idMap = new ClearableObjectIntIdentityMap<IBlockState>()
-            {
-                @SuppressWarnings("deprecation")
-                @Override
-                public int get(IBlockState key)
-                {
-                    Integer integer = (Integer)this.identityMap.get(key);
-                    // There are some cases where this map is queried to serialize a state that is valid,
-                    //but somehow not in this list, so attempt to get real metadata. Doing this hear saves us 7 patches
-                    if (integer == null && key != null)
-                        integer = this.identityMap.get(key.getBlock().getStateFromMeta(key.getBlock().getMetaFromState(key)));
-                    return integer == null ? -1 : integer.intValue();
-                }
-            };
-            owner.setSlaveMap(BLOCKSTATE_TO_LEGACY_ID, idMap);
             owner.setSlaveMap(BLOCK_TO_ITEM, HashBiMap.create());
         }
 

@@ -7,6 +7,7 @@ import java.util.Random;
 import java.util.zip.DeflaterOutputStream;
 
 import com.cleanroommc.ids.SectionBlockFormat;
+import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.init.Blocks;
 import net.minecraft.nbt.CompressedStreamTools;
@@ -64,7 +65,25 @@ public class SectionFormatBenchmark
         NBTTagCompound tag = new NBTTagCompound();
         byte[] blocks = new byte[4096];
         NibbleArray meta = new NibbleArray();
-        NibbleArray add = data.getDataForNBT(blocks, meta);
+        NibbleArray add = null;
+        for (int i = 0; i < 4096; i++)
+        {
+            IBlockState state = data.get(i & 15, i >> 8, i >> 4 & 15);
+            int j = Block.getIdFromBlock(state.getBlock()) << 4 | state.getBlock().getMetaFromState(state);
+            int k = i & 15;
+            int l = i >> 8 & 15;
+            int i1 = i >> 4 & 15;
+            if ((j >> 12 & 15) != 0)
+            {
+                if (add == null)
+                {
+                    add = new NibbleArray();
+                }
+                add.set(k, l, i1, j >> 12 & 15);
+            }
+            blocks[i] = (byte)(j >> 4 & 0xFF);
+            meta.set(k, l, i1, j & 15);
+        }
         tag.setByteArray("Blocks", blocks);
         tag.setByteArray("Data", meta.getData());
         if (add != null)

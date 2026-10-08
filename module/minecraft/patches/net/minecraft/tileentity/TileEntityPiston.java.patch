@@ -14,7 +14,7 @@
      public void readFromNBT(NBTTagCompound compound) {
          super.readFromNBT(compound);
 -        this.pistonState = Block.getBlockById(compound.getInteger("blockId")).getStateFromMeta(compound.getInteger("blockData"));
-+        this.pistonState = compound.hasKey("blockState", 10) ? net.minecraft.nbt.NBTUtil.readBlockState(compound.getCompoundTag("blockState")) : Block.getBlockById(compound.getInteger("blockId")).getStateFromMeta(compound.getInteger("blockData")); // Cleanroom
++        this.pistonState = compound.hasKey("blockState", 10) ? net.minecraft.nbt.NBTUtil.readBlockState(compound.getCompoundTag("blockState")) : com.cleanroommc.ids.LegacyIds.block(compound.getInteger("blockId")).getStateFromMeta(compound.getInteger("blockData")); // Cleanroom: blockId is a Forge-era saved id
          this.pistonFacing = EnumFacing.byIndex(compound.getInteger("facing"));
          this.progress = compound.getFloat("progress");
          this.lastProgress = this.progress;

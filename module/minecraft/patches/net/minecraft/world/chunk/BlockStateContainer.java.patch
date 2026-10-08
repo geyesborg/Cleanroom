@@ -85,31 +85,46 @@
      }
  
      public void write(PacketBuffer buf) {
-@@ -97,9 +148,10 @@
-     @Nullable
-     public NibbleArray getDataForNBT(byte[] blockIds, NibbleArray data) {
-         NibbleArray nibblearray = null;
-+        net.minecraft.util.ObjectIntIdentityMap<IBlockState> legacyIds = net.minecraftforge.registries.GameData.getLegacyBlockStateIDMap(); // Cleanroom: the Anvil format stores id << 4 | meta, not runtime ids
- 
-         for (int i = 0; i < 4096; i++) {
--            int j = Block.BLOCK_STATE_IDS.get(this.get(i));
-+            int j = legacyIds.get(this.get(i));
-             int k = i & 15;
-             int l = i >> 8 & 15;
-             int i1 = i >> 4 & 15;
-@@ -119,13 +171,14 @@
+@@ -94,30 +145,6 @@
+         buf.writeLongArray(this.storage.getBackingLongArray());
      }
  
+-    @Nullable
+-    public NibbleArray getDataForNBT(byte[] blockIds, NibbleArray data) {
+-        NibbleArray nibblearray = null;
+-
+-        for (int i = 0; i < 4096; i++) {
+-            int j = Block.BLOCK_STATE_IDS.get(this.get(i));
+-            int k = i & 15;
+-            int l = i >> 8 & 15;
+-            int i1 = i >> 4 & 15;
+-            if ((j >> 12 & 15) != 0) {
+-                if (nibblearray == null) {
+-                    nibblearray = new NibbleArray();
+-                }
+-
+-                nibblearray.set(k, l, i1, j >> 12 & 15);
+-            }
+-
+-            blockIds[i] = (byte)(j >> 4 & 0xFF);
+-            data.set(k, l, i1, j & 15);
+-        }
+-
+-        return nibblearray;
+-    }
+-
      public void setDataFromNBT(byte[] blockIds, NibbleArray data, @Nullable NibbleArray blockIdExtension) {
-+        net.minecraft.util.ObjectIntIdentityMap<IBlockState> legacyIds = net.minecraftforge.registries.GameData.getLegacyBlockStateIDMap(); // Cleanroom: see getDataForNBT
          for (int i = 0; i < 4096; i++) {
              int j = i & 15;
-             int k = i >> 8 & 15;
+@@ -125,7 +152,10 @@
              int l = i >> 4 & 15;
              int i1 = blockIdExtension == null ? 0 : blockIdExtension.get(j, k, l);
              int j1 = i1 << 12 | (blockIds[i] & 255) << 4 | data.get(j, k, l);
 -            this.set(i, Block.BLOCK_STATE_IDS.getByValue(j1));
-+            this.set(i, legacyIds.getByValue(j1));
++            // Cleanroom: the stored id << 4 | meta is a Forge-era id; resolve it through the world's
++            // saved name table so modded blocks decode correctly under derived numbering
++            Block block = com.cleanroommc.ids.LegacyIds.block(j1 >> 4);
++            this.set(i, block == null ? null : block.getStateFromMeta(j1 & 15));
          }
      }
  
