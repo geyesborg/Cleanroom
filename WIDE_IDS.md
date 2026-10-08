@@ -401,6 +401,19 @@ changes, the shape does not); recipes, capabilities, loot tables, advancements (
 about what a block or item *is*. This is an ID system, not a content system. **Ore dictionary** is out too:
 it belongs with the tag system Rongmario is working out, not here.
 
+## Code shape: when something gets its own class
+
+`com.cleanroommc.ids` holds components that own **state or an algorithm** and have their own tests:
+`ChunkBiomes` (a chunk's biome storage), `SectionBlockFormat` (the chunk save format), `EntityIds` (the
+instance-id counter), and in `module/forge` `RegistrySync` and `BiomeArrayTransformer`. Pulling these out of
+the 1,000-line vanilla classes they serve keeps the patch tree reviewable. `LegacyIdWorlds` and
+`PackedItems` are compatibility bridges kept separate so they are easy to find and delete.
+
+**A new class needs to own state, or an algorithm with more than one caller or more than one case to test.**
+A one-method wrapper around arithmetic goes `private static` next to its single caller. Testability alone is
+not a reason: it bends the test to the code. Two such wrappers (`ItemModelKey`, the last method of `WideNbt`)
+were folded back into their callers; the test that remained exercises the real reader end to end instead.
+
 ## Prior art, compared
 
 Checked against modern Minecraft, Fabric, NeoForge, Bedrock and the 1.12 ID mods, to see what they got right

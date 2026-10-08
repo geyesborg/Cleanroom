@@ -129,13 +129,6 @@ public class SavedNamesTest {
     }
 
     @Test
-    public void itemModelMesherKeysDoNotCollidePastShortIds() {
-        assertNotEquals(ItemModelKey.of(65536, 0), ItemModelKey.of(0, 0));
-        assertNotEquals(ItemModelKey.of(32768, 5), ItemModelKey.of(0, 5));
-        assertNotEquals(ItemModelKey.of(1, 65536), ItemModelKey.of(2, 0));
-        assertEquals(ItemModelKey.of(1, 2), ItemModelKey.of(1, 2));
-    }
-    @Test
     public void unknownNameIsMissingNotTheId() {
         // An unresolvable name means the owning mod is gone: the numeric id must NOT be used,
         // it could now belong to a different registry entry.

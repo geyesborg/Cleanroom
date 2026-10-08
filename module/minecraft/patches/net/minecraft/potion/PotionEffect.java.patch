@@ -36,7 +36,7 @@
          return this.potion;
      }
  
-@@ -167,18 +175,27 @@
+@@ -167,18 +175,28 @@
  
      /** Write a custom potion effect to a potion item's NBT data. */
      public NBTTagCompound writeCustomPotionEffectToNBT(NBTTagCompound nbt) {
@@ -62,12 +62,13 @@
 +        if (nbt.hasKey("Name", 8)) { // Cleanroom: names are stable when ids shift; an unresolvable name is missing, never the id
 +            potion = Potion.REGISTRY.getObject(new ResourceLocation(nbt.getString("Name")));
 +        } else {
-+            potion = Potion.getPotionById(com.cleanroommc.ids.WideNbt.getUnsignedByteOrInt(nbt, "Id")); // Cleanroom: byte or int
++            // Cleanroom: saves from before ids were widened wrote a signed byte, so 128..255 are negative there
++            potion = Potion.getPotionById(nbt.getTagId("Id") == 1 ? nbt.getByte("Id") & 0xFF : nbt.getInteger("Id"));
 +        }
          if (potion == null) {
              return null;
          }
-@@ -191,7 +208,7 @@
+@@ -191,7 +209,7 @@
              flag1 = nbt.getBoolean("ShowParticles");
          }
  
@@ -76,7 +77,7 @@
      }
  
      /** Toggle the isPotionDurationMax field. */
-@@ -209,14 +226,82 @@
+@@ -209,14 +227,82 @@
      public int compareTo(PotionEffect p_compareTo_1_) {
          int i = 32147;
          return (this.getDuration() <= 32147 || p_compareTo_1_.getDuration() <= 32147) && (!this.getIsAmbient() || !p_compareTo_1_.getIsAmbient())

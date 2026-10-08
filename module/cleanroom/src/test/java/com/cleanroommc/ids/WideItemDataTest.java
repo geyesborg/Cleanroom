@@ -15,6 +15,7 @@ import net.minecraft.nbt.NBTTagList;
 import net.minecraft.nbt.NBTTagLong;
 import net.minecraft.nbt.NBTTagShort;
 import net.minecraft.network.PacketBuffer;
+import net.minecraft.potion.Potion;
 import net.minecraft.potion.PotionEffect;
 import net.minecraftforge.fml.common.registry.ForgeTestRunner;
 import net.minecraftforge.fml.common.registry.MinecraftTestHarness;
@@ -26,6 +27,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -91,11 +93,24 @@ public class WideItemDataTest {
 
     @Test
     public void potionIdsFromOlderSavesAreReadAsUnsignedBytes() {
+        // Vanilla has 27 potions; register enough that one lands in 128..255, where a signed byte goes negative
+        Potion wide = null;
+        for (int i = 0; i < 140 && wide == null; i++) {
+            Potion potion = new Potion(false, 0) {};
+            potion.setRegistryName("wideids_test", "byte_range_effect_" + i);
+            net.minecraftforge.fml.common.registry.ForgeRegistries.POTIONS.register(potion);
+            int candidate = Potion.getIdFromPotion(potion);
+            if (candidate >= 128 && candidate <= 255) {
+                wide = potion;
+            }
+        }
+        assertNotNull(wide, "no registered potion landed in 128..255");
+        int id = Potion.getIdFromPotion(wide);
+        assertTrue(id >= 128 && id <= 255, "needs an id that is negative as a signed byte, got " + id);
         NBTTagCompound tag = new NBTTagCompound();
-        tag.setByte("Id", (byte) 200);
-        assertEquals(200, WideNbt.getUnsignedByteOrInt(tag, "Id"));
-        tag.setInteger("Id", 300);
-        assertEquals(300, WideNbt.getUnsignedByteOrInt(tag, "Id"));
+        tag.setByte("Id", (byte) id); // an old save: negative as a byte
+        tag.setInteger("Duration", 10);
+        assertSame(wide, PotionEffect.readCustomPotionEffectFromNBT(tag).getPotion());
     }
 
     @Test

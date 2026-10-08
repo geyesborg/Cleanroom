@@ -38,7 +38,7 @@
 -    private int getIndex(Item item, int meta) {
 -        return Item.getIdFromItem(item) << 16 | meta;
 +    private long getIndex(Item item, int meta) {
-+        return com.cleanroommc.ids.ItemModelKey.of(Item.getIdFromItem(item), meta);
++        return (long)Item.getIdFromItem(item) << 32 | meta & 0xFFFFFFFFL; // Cleanroom: id << 16 | meta collided past item id 65535
      }
  
      public void register(Item item, int meta, ModelResourceLocation location) {
