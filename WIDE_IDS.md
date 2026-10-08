@@ -490,16 +490,31 @@ stable while running.
 
 ## Open questions (for the maintainers)
 
-- Dropping `getID` stability across sessions: acceptable? It is the whole design.
-- Any Cleanroom-side saved data that holds a registry number we haven't found.
-- Whether the login list should be per registry or one message.
-- Derived numbering with a hash check instead of sending a list: any case where the two sides could legitimately
-  differ beyond client-only registrations?
-- Single registration phase and a one-message handshake: both change what mods and clients see. In or out?
-- Biome ASM redirect: decided (redirect, remove the accessor). Remaining: should an escaping array reference
-  fail the class load, or load with a warning and let the mod crash later? Failing is proposed.
-- The manifest / retention design above, and how to decide "real playtime".
-- "Load anyway" keeps unresolved names (proposed default) vs treats it as a clean removal.
+Grouped by what each gates.
+
+**The premise (built; needs an explicit yes before merge).** `getID` no longer returns the same number
+across sessions; a mod that saved a registry number to disk breaks. Phases 1-3 are built and tested on this.
+
+**The manifest and retention design (gates `FROZEN`/`STAGING`, dummies, snapshots, `FML Registries`,
+`MissingMappings`-once).**
+- Manifest instead of placeholder entries: right approach?
+- "Real playtime" for the load-time warning: proposed default is `level.dat` `Time` under one in-game day
+  means barely played, overridable per world.
+- "Load anyway": keep unresolved names in chunks and items so the content returns with the mod (proposed), or
+  treat it as a clean removal?
+
+**API-visible changes, in or out (improvements over Forge, but mods/clients see them).**
+- Single registration phase: every registry open in one event, instead of block → item → rest.
+- One handshake message: mod list, per-registry hashes and format version together, instead of the state
+  machine.
+
+**Hash handshake edge.** Entries a client-only mod adds to a synced registry are refused, not appended (Forge
+dummied them). Is there a legitimate case where the two sides should differ that the hash would wrongly
+reject?
+
+Resolved since first written: the login message is one `RegistryHashes`; the biome array stays a real
+`byte[]` snapshot so an escape loses the write rather than failing the class load; the saved-number audit found
+and fixed potion/beacon/enchantment ids.
 
 ## Status
 
