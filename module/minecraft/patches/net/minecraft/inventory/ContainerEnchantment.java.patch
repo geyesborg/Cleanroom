@@ -1,14 +1,6 @@
 --- original/net/minecraft/inventory/ContainerEnchantment.java
 +++ modified/net/minecraft/inventory/ContainerEnchantment.java
-@@ -47,6 +47,7 @@
-     public int[] enchantLevels = new int[3];
-     public int[] enchantClue = new int[]{-1, -1, -1};
-     public int[] worldClue = new int[]{-1, -1, -1};
-+    private final int[] enchantClueHigh = new int[]{Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE}; // Cleanroom: received high halves of enchantClue; MIN_VALUE = none, vanilla value
- 
-     @SideOnly(Side.CLIENT)
-     public ContainerEnchantment(InventoryPlayer playerInv, World worldIn) {
-@@ -71,10 +72,12 @@
+@@ -71,10 +71,12 @@
              }
          });
          this.addSlotToContainer(new Slot(this.tableInventory, 1, 35, 47) {
@@ -23,34 +15,7 @@
              }
          });
  
-@@ -94,9 +97,12 @@
-         crafting.sendWindowProperty(this, 1, this.enchantLevels[1]);
-         crafting.sendWindowProperty(this, 2, this.enchantLevels[2]);
-         crafting.sendWindowProperty(this, 3, this.xpSeed & -16);
--        crafting.sendWindowProperty(this, 4, this.enchantClue[0]);
--        crafting.sendWindowProperty(this, 5, this.enchantClue[1]);
--        crafting.sendWindowProperty(this, 6, this.enchantClue[2]);
-+        for (int i = 0; i < 3; i++) { // Cleanroom: enchantment ids past 16 bits, high half before the low half
-+            crafting.sendWindowProperty(this, 10 + i, com.cleanroommc.ids.WideWindowProperty.high(this.enchantClue[i]));
-+        }
-+        crafting.sendWindowProperty(this, 4, com.cleanroommc.ids.WideWindowProperty.low(this.enchantClue[0]));
-+        crafting.sendWindowProperty(this, 5, com.cleanroommc.ids.WideWindowProperty.low(this.enchantClue[1]));
-+        crafting.sendWindowProperty(this, 6, com.cleanroommc.ids.WideWindowProperty.low(this.enchantClue[2]));
-         crafting.sendWindowProperty(this, 7, this.worldClue[0]);
-         crafting.sendWindowProperty(this, 8, this.worldClue[1]);
-         crafting.sendWindowProperty(this, 9, this.worldClue[2]);
-@@ -127,7 +133,9 @@
-         } else if (id == 3) {
-             this.xpSeed = data;
-         } else if (id >= 4 && id <= 6) {
--            this.enchantClue[id - 4] = data;
-+            this.enchantClue[id - 4] = com.cleanroommc.ids.WideWindowProperty.combine(this.enchantClueHigh[id - 4], data);
-+        } else if (id >= 10 && id <= 12) {
-+            this.enchantClueHigh[id - 10] = data;
-         } else if (id >= 7 && id <= 9) {
-             this.worldClue[id - 7] = data;
-         } else {
-@@ -142,43 +150,21 @@
+@@ -142,43 +144,21 @@
              ItemStack itemstack = inventoryIn.getStackInSlot(0);
              if (!itemstack.isEmpty() && itemstack.isItemEnchantable()) {
                  if (!this.world.isRemote) {
@@ -101,7 +66,7 @@
                                  }
                              }
                          }
-@@ -187,12 +173,13 @@
+@@ -187,12 +167,13 @@
                      this.rand.setSeed(this.xpSeed);
  
                      for (int i1 = 0; i1 < 3; i1++) {
@@ -116,7 +81,7 @@
                      }
  
                      for (int j1 = 0; j1 < 3; j1++) {
-@@ -346,9 +333,8 @@
+@@ -346,9 +327,8 @@
                      return ItemStack.EMPTY;
                  }
  

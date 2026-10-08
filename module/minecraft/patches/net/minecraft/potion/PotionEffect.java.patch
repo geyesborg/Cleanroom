@@ -33,7 +33,7 @@
      /** Write a custom potion effect to a potion item's NBT data. */
      public NBTTagCompound writeCustomPotionEffectToNBT(NBTTagCompound nbt) {
 -        nbt.setByte("Id", (byte)Potion.getIdFromPotion(this.getPotion()));
-+        com.cleanroommc.ids.WideNbt.setUnsignedByteOrInt(nbt, "Id", Potion.getIdFromPotion(this.getPotion())); // Cleanroom: ids past 255
++        nbt.setInteger("Id", Potion.getIdFromPotion(this.getPotion())); // Cleanroom: any id (was a byte)
          nbt.setByte("Amplifier", (byte)this.getAmplifier());
          nbt.setInteger("Duration", this.getDuration());
          nbt.setBoolean("Ambient", this.getIsAmbient());

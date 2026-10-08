@@ -9,9 +9,12 @@ import java.util.List;
 
 /**
  * The recipe book's packed item ints ({@code RecipeItemHelper.pack/unpack}, {@code Ingredient.getValidItemStacksPacked}).
- * Vanilla packs {@code item id << 16 | meta}, which only fits item ids below 65536 and 16-bit damage values. Items
- * that fit keep that value (and its sign bit is 0, as ids below 32768 were the only ones possible); any other
- * item/damage pair gets {@code Integer.MIN_VALUE | n}, numbered the first time it is packed. 0 stays empty.
+ * These ints are only compared and counted inside one game session: no packet or save carries them.
+ * <p>
+ * Vanilla's {@code item id << 16 | meta} is an exact encoding while it fits in 31 bits (item id below 32768, meta
+ * below 65536), costs nothing, and keeps the values mods may already compute, so it is used there. The sign bit is the
+ * only thing that decides it: it is not a limit on ids. Every other pair is numbered exactly, the first time it is
+ * packed, as {@code Integer.MIN_VALUE | n}. Both ranges identify an item and meta exactly, with no collisions.
  */
 public final class PackedItems {
     private record Key(Item item, int meta) {}

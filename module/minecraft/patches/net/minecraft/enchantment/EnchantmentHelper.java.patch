@@ -23,7 +23,7 @@
                  int i = entry.getValue();
                  NBTTagCompound nbttagcompound = new NBTTagCompound();
 -                nbttagcompound.setShort("id", (short)Enchantment.getEnchantmentID(enchantment));
-+                com.cleanroommc.ids.WideNbt.setShortOrInt(nbttagcompound, "id", Enchantment.getEnchantmentID(enchantment)); // Cleanroom: ids past 32767
++                nbttagcompound.setInteger("id", Enchantment.getEnchantmentID(enchantment)); // Cleanroom: any id (was a short)
                  nbttagcompound.setShort("lvl", (short)i);
                  nbttaglist.appendTag(nbttagcompound);
                  if (stack.getItem() == Items.ENCHANTED_BOOK) {

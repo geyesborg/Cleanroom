@@ -124,7 +124,7 @@
          nbt.setString("id", resourcelocation == null ? "minecraft:air" : resourcelocation.toString());
          nbt.setByte("Count", (byte)this.stackSize);
 -        nbt.setShort("Damage", (short)this.itemDamage);
-+        com.cleanroommc.ids.WideNbt.setShortOrInt(nbt, "Damage", this.itemDamage); // Cleanroom: damage past 32767
++        nbt.setInteger("Damage", this.itemDamage); // Cleanroom: any damage (was a short)
          if (this.stackTagCompound != null) {
              nbt.setTag("tag", this.stackTagCompound);
          }
@@ -298,7 +298,7 @@
          NBTTagList nbttaglist = this.stackTagCompound.getTagList("ench", 10);
          NBTTagCompound nbttagcompound = new NBTTagCompound();
 -        nbttagcompound.setShort("id", (short)Enchantment.getEnchantmentID(ench));
-+        com.cleanroommc.ids.WideNbt.setShortOrInt(nbttagcompound, "id", Enchantment.getEnchantmentID(ench)); // Cleanroom: ids past 32767
++        nbttagcompound.setInteger("id", Enchantment.getEnchantmentID(ench)); // Cleanroom: any id (was a short)
          nbttagcompound.setShort("lvl", (byte)level);
          nbttaglist.appendTag(nbttagcompound);
      }
