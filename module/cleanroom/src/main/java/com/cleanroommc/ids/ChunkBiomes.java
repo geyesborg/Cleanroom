@@ -33,7 +33,6 @@ public final class ChunkBiomes {
     public static final String INDICES = "BiomeIndices";
     private static final int SIZE = 256;
     private static final Logger LOGGER = LogManager.getLogger("Cleanroom");
-    private static boolean warnedAmbiguous;
 
     private final Chunk chunk;
     private final byte[] view;
@@ -101,6 +100,14 @@ public final class ChunkBiomes {
         setAll(newIds);
     }
 
+    /** JEID/REID save one full biome id per column. */
+    public void setIds(int[] newIds) {
+        if (newIds.length != SIZE) {
+            throw new IllegalArgumentException("Chunk biomes need " + SIZE + " ids, got " + newIds.length + ".");
+        }
+        setAll(newIds);
+    }
+
     private static byte legacyByte(int id) {
         return id == UNSET ? (byte) 0xFF : (byte) id;
     }
@@ -122,6 +129,21 @@ public final class ChunkBiomes {
         }
     }
 
+    /**
+     * What a byte a mod wrote into {@code getBiomeArray()} means. A mod never invents the byte: it came from
+     * {@code Biome.getIdForBiome} (the low byte of a full id), most often read out of this same array a moment
+     * earlier. So, in order:
+     * <ol>
+     * <li>Only one biome has that low byte: it. (Always the case with at most 256 biomes.)</li>
+     * <li>One of the candidates is already somewhere in this chunk: that one. A read-modify-write of the array
+     * (the common pattern: feature generators, decorators) resolves every unchanged cell exactly, and a cell
+     * copied from a neighbour resolves to the neighbour's biome.</li>
+     * <li>The world's biome provider places one of the candidates at this column: that one. Chunk generators
+     * writing what they just computed from the provider land here.</li>
+     * <li>Otherwise the lowest candidate, with a warning naming the mod. This is a biome past 255, new to the
+     * chunk, that disagrees with the provider: a byte cannot carry it. The mod needs {@link #set}.</li>
+     * </ol>
+     */
     private int resolve(int lowByte, int index) {
         if (lowByte == 0xFF) {
             return UNSET;
@@ -129,6 +151,10 @@ public final class ChunkBiomes {
         int[] candidates = GameData.getBiomeIdsWithLowByte(lowByte);
         if (candidates.length <= 1) {
             return candidates.length == 0 ? UNSET : candidates[0];
+        }
+        int present = candidatePresentInChunk(candidates);
+        if (present != UNSET) {
+            return present;
         }
         World world = chunk.getWorld();
         if (world != null && !world.isRemote) {
@@ -140,12 +166,51 @@ public final class ChunkBiomes {
                 }
             }
         }
-        if (!warnedAmbiguous) {
-            warnedAmbiguous = true;
-            LOGGER.warn("A biome was written into Chunk.getBiomeArray() as byte {}, which {} biomes share; using id {}. Mods that set biomes should use Chunk.getBiomeIds() (logged once).",
-                    lowByte, candidates.length, candidates[0]);
-        }
+        warnAmbiguous(lowByte, candidates);
         return candidates[0];
+    }
+
+    /** The candidate already used by another column of this chunk, if exactly one of them is. */
+    private int candidatePresentInChunk(int[] candidates) {
+        int found = UNSET;
+        for (int id : ids) {
+            if (id == UNSET) {
+                continue;
+            }
+            for (int candidate : candidates) {
+                if (id == candidate) {
+                    if (found != UNSET && found != id) {
+                        return UNSET; // two candidates both present: the byte is ambiguous even within the chunk
+                    }
+                    found = id;
+                }
+            }
+        }
+        return found;
+    }
+
+    private static final java.util.Set<String> WARNED_WRITERS = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    private static void warnAmbiguous(int lowByte, int[] candidates) {
+        String writer = callingMod();
+        if (!WARNED_WRITERS.add(writer)) {
+            return;
+        }
+        LOGGER.warn("{} wrote biome byte {} into Chunk.getBiomeArray(); {} biomes share that low byte and none is in this chunk or placed here by the biome provider. Using {} ({}). "
+                + "A byte cannot hold a biome id past 255: this mod needs Chunk.getBiomeIds().set(x, z, id). Logged once per mod.",
+                writer, lowByte, candidates.length, candidates[0], Biome.getBiome(candidates[0]) == null ? "?" : Biome.getBiome(candidates[0]).getRegistryName());
+    }
+
+    /** The first stack frame outside Minecraft, Forge and Cleanroom: the mod that wrote the byte. */
+    private static String callingMod() {
+        for (StackTraceElement frame : Thread.currentThread().getStackTrace()) {
+            String cls = frame.getClassName();
+            if (cls.startsWith("java.") || cls.startsWith("net.minecraft.") || cls.startsWith("net.minecraftforge.") || cls.startsWith("com.cleanroommc.")) {
+                continue;
+            }
+            return cls;
+        }
+        return "an unknown caller";
     }
 
     public void writeNBT(NBTTagCompound chunkTag) {

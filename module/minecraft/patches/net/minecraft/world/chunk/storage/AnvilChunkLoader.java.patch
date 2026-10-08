@@ -144,7 +144,7 @@
          for (ExtendedBlockStorage extendedblockstorage : aextendedblockstorage) {
              if (extendedblockstorage != Chunk.NULL_BLOCK_STORAGE) {
                  NBTTagCompound nbttagcompound = new NBTTagCompound();
-                 nbttagcompound.setByte("Y", (byte)(extendedblockstorage.getYLocation() >> 4 & 0xFF));
+-                nbttagcompound.setByte("Y", (byte)(extendedblockstorage.getYLocation() >> 4 & 0xFF));
 -                byte[] abyte = new byte[4096];
 -                NibbleArray nibblearray = new NibbleArray();
 -                NibbleArray nibblearray1 = extendedblockstorage.getData().getDataForNBT(abyte, nibblearray);
@@ -153,6 +153,7 @@
 -                if (nibblearray1 != null) {
 -                    nbttagcompound.setByteArray("Add", nibblearray1.getData());
 -                }
++                nbttagcompound.setInteger("Y", extendedblockstorage.getYLocation() >> 4); // Cleanroom: an int, so the format never caps section count or sign; readers take the old byte too
 +                com.cleanroommc.ids.SectionBlockFormat.write(extendedblockstorage.getData(), nbttagcompound, blockPalette); // Cleanroom: palette by name instead of Blocks/Data/Add
  
                  nbttagcompound.setByteArray("BlockLight", extendedblockstorage.getBlockLight().getData());
@@ -212,7 +213,7 @@
      }
  
      /** Reads the data stored in the passed NBTTagCompound and creates a Chunk with that data in the passed World. Returns the created Chunk. */
-@@ -325,15 +386,20 @@
+@@ -325,15 +386,24 @@
          int k = 16;
          ExtendedBlockStorage[] aextendedblockstorage = new ExtendedBlockStorage[16];
          boolean flag = worldIn.provider.hasSkyLight();
@@ -220,10 +221,15 @@
  
          for (int l = 0; l < nbttaglist.tagCount(); l++) {
              NBTTagCompound nbttagcompound = nbttaglist.getCompoundTagAt(l);
-             int i1 = nbttagcompound.getByte("Y");
+-            int i1 = nbttagcompound.getByte("Y");
++            int i1 = nbttagcompound.getInteger("Y"); // Cleanroom: byte in old saves, int in ours; both read
              ExtendedBlockStorage extendedblockstorage = new ExtendedBlockStorage(i1 << 4, flag);
 +            if (blockPalette != null) {
 +                com.cleanroommc.ids.SectionBlockFormat.read(nbttagcompound, extendedblockstorage.getData(), blockPalette);
++            } else if (com.cleanroommc.ids.SectionBlockFormat.isJeidSection(nbttagcompound)) { // Cleanroom: JEID/REID numeric palette, converted on the next save
++                com.cleanroommc.ids.SectionBlockFormat.readJeid(nbttagcompound, extendedblockstorage.getData());
++            } else if (com.cleanroommc.ids.SectionBlockFormat.isNeidSection(nbttagcompound)) { // Cleanroom: NEID Blocks16, converted on the next save
++                com.cleanroommc.ids.SectionBlockFormat.readNeid(nbttagcompound, extendedblockstorage.getData());
 +            } else { // Cleanroom: Anvil sections from before the palette format, converted when the chunk is next saved
              byte[] abyte = nbttagcompound.getByteArray("Blocks");
              NibbleArray nibblearray = new NibbleArray(nbttagcompound.getByteArray("Data"));
@@ -233,18 +239,22 @@
              extendedblockstorage.setBlockLight(new NibbleArray(nbttagcompound.getByteArray("BlockLight")));
              if (flag) {
                  extendedblockstorage.setSkyLight(new NibbleArray(nbttagcompound.getByteArray("SkyLight")));
-@@ -344,10 +410,17 @@
+@@ -344,10 +414,21 @@
          }
  
          chunk.setStorageArrays(aextendedblockstorage);
 -        if (compound.hasKey("Biomes", 7)) {
 -            chunk.setBiomeArray(compound.getByteArray("Biomes"));
-+        chunk.getBiomeIds().readNBT(compound); // Cleanroom: either format
-+
-+        if (chunk.getCapabilities() != null && compound.hasKey("ForgeCaps")) {
-+            chunk.getCapabilities().deserializeNBT(compound.getCompoundTag("ForgeCaps"));
++        if (compound.getIntArray("Biomes").length == 256) { // Cleanroom: JEID/REID int biome ids
++            chunk.getBiomeIds().setIds(compound.getIntArray("Biomes"));
++        } else {
++            chunk.getBiomeIds().readNBT(compound); // Cleanroom: either format
          }
  
++        if (chunk.getCapabilities() != null && compound.hasKey("ForgeCaps")) {
++            chunk.getCapabilities().deserializeNBT(compound.getCompoundTag("ForgeCaps"));
++        }
++
 +        // End this method here and split off entity loading to another method
 +        return chunk;
 +    }
@@ -253,7 +263,7 @@
          NBTTagList nbttaglist1 = compound.getTagList("Entities", 10);
  
          for (int j1 = 0; j1 < nbttaglist1.tagCount(); j1++) {
-@@ -386,8 +459,6 @@
+@@ -386,8 +467,6 @@
                  );
              }
          }
@@ -262,7 +272,7 @@
      }
  
      @Nullable
-@@ -481,4 +552,8 @@
+@@ -481,4 +560,8 @@
  
          return entity;
      }

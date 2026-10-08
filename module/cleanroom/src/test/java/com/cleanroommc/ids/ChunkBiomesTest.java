@@ -49,7 +49,9 @@ public class ChunkBiomesTest {
         biomes.set(0, Biome.getIdForBiome(Biomes.DESERT));
         int[] before = biomes.copy();
         NBTTagList palette = new NBTTagList();
-        for (int i = 0; i < 257; i++) palette.appendTag(new NBTTagString(""));
+        for (int i = 0; i < 257; i++) {
+            palette.appendTag(new NBTTagString(""));
+        }
         NBTTagCompound tag = new NBTTagCompound();
         tag.setTag(ChunkBiomes.PALETTE, palette);
         tag.setByteArray(ChunkBiomes.INDICES, new byte[256]);
@@ -73,7 +75,9 @@ public class ChunkBiomesTest {
         }
         NBTTagCompound tag = new NBTTagCompound();
         tag.setTag(ChunkBiomes.PALETTE, palette);
-        if (palette.tagCount() > 1) tag.setByteArray(ChunkBiomes.INDICES, indices);
+        if (palette.tagCount() > 1) {
+            tag.setByteArray(ChunkBiomes.INDICES, indices);
+        }
         return tag;
     }
 
@@ -90,7 +94,9 @@ public class ChunkBiomesTest {
         ChunkBiomes biomes = chunk().getBiomeIds();
         for (int distinct : new int[] { 1, 2, 16, 127, 128, 255, 256 }) {
             int[] ids = new int[256];
-            for (int i = 0; i < ids.length; i++) ids[i] = wide[i % distinct];
+            for (int i = 0; i < ids.length; i++) {
+                ids[i] = wide[i % distinct];
+            }
             biomes.setAll(ids);
             NBTTagCompound actual = new NBTTagCompound();
             biomes.writeNBT(actual);
@@ -166,6 +172,64 @@ public class ChunkBiomesTest {
         assertEquals(ChunkBiomes.UNSET, chunk.getBiomeIds().get(17));
         chunk.setBiomeArray(new byte[256]);
         assertEquals(Biome.getIdForBiome(Biomes.OCEAN), chunk.getBiomeIds().get(17));
+    }
+
+    /** A biome past 255 whose low byte another biome also has, registering the extra biomes if this test runs first. */
+    private static int wideBiomeSharingALowByte() {
+        for (int i = 0; i < 256; i++) {
+            ResourceLocation name = new ResourceLocation("wideids_test", "palette_" + i);
+            if (!ForgeRegistries.BIOMES.containsKey(name)) {
+                Biome biome = new Biome(new Biome.BiomeProperties("palette_" + i)) {};
+                biome.setRegistryName(name);
+                ForgeRegistries.BIOMES.register(biome);
+            }
+        }
+        for (Biome biome : ForgeRegistries.BIOMES) {
+            int id = Biome.getIdForBiome(biome);
+            if (id > 255 && net.minecraftforge.registries.GameData.getBiomeIdsWithLowByte(id & 0xFF).length > 1) {
+                return id;
+            }
+        }
+        throw new AssertionError("no wide biome shares a low byte with another");
+    }
+
+    @Test
+    public void byteWritesResolveToTheBiomeAlreadyInTheChunk() {
+        int wide = wideBiomeSharingALowByte();
+        int[] sharing = net.minecraftforge.registries.GameData.getBiomeIdsWithLowByte(wide & 0xFF);
+        assertTrue(sharing.length > 1);
+        assertTrue(sharing[0] != wide, "the lowest candidate is not the wide one, so a naive pick would be wrong");
+
+        Chunk chunk = chunk();
+        chunk.getBiomeIds().set(0, 0, wide); // the proper API put the wide biome here
+        byte[] view = chunk.getBiomeArray();
+        assertEquals((byte) wide, view[0]);
+
+        // Read-modify-write, the common mod pattern: copy the byte to the neighbouring columns
+        for (int i = 1; i < 16; i++) {
+            view[i] = view[0];
+        }
+        for (int i = 0; i < 16; i++) {
+            assertEquals(wide, chunk.getBiomeIds().get(i), "column " + i + " resolves through the chunk, not to the lowest id " + sharing[0]);
+        }
+
+        // Round trip: the save holds the wide biome's name, not the lowest candidate's
+        NBTTagCompound tag = new NBTTagCompound();
+        chunk.getBiomeIds().writeNBT(tag);
+        ChunkBiomes back = chunk().getBiomeIds();
+        assertTrue(back.readNBT(tag));
+        for (int i = 0; i < 16; i++) {
+            assertEquals(wide, back.get(i));
+        }
+    }
+
+    @Test
+    public void byteWriteOfAWideBiomeNewToAnEmptyChunkFallsBackToTheLowestCandidate() {
+        int wide = wideBiomeSharingALowByte();
+        int[] sharing = net.minecraftforge.registries.GameData.getBiomeIdsWithLowByte(wide & 0xFF);
+        Chunk chunk = chunk(); // world is null: no provider to consult either
+        chunk.getBiomeArray()[0] = (byte) wide;
+        assertEquals(sharing[0], chunk.getBiomeIds().get(0), "nothing in the chunk or the provider to disambiguate: a byte can't carry this biome");
     }
 
     @Test
