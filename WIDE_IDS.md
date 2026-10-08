@@ -223,7 +223,8 @@ mod, that is a mod-list mismatch and the mod-list handshake already reports it.
 
 Recipes and data serializers are Forge registries whose numbers go over the wire (`SPacketRecipeBook`,
 `CPacketRecipeInfo`, `EntityDataManager`); the same rule applies to them. Statistics already sync by name and
-are left alone.
+are left alone. A registry with no non-`minecraft` entries need not be sent at all (its content is known);
+Fabric makes the same cut. Not done yet; a small refinement of `RegistrySync.local`.
 
 There is one numbering per type already: vanilla's `Block.REGISTRY`, `Item.REGISTRY` etc. are
 `NamespacedWrapper`s whose `getIDForObject`/`getObjectById` forward to the `ForgeRegistry`, and
@@ -250,7 +251,9 @@ placeholder lets you keep playing on a world that has quietly lost content.
 
 Written on save, replaces `FML Registries` in `level.dat`:
 
-- per registry, the list of registered **names** when the world was last saved;
+- per registry, the list of registered **names** when the world was last saved, **excluding the `minecraft:`
+  namespace** (vanilla cannot go missing; recording it is pure size — Fabric's missing-content check makes the
+  same cut);
 - the mod list (ids and versions).
 
 Chunks already hold names, so nothing else is snapshotted: the names in a chunk *are* its snapshot. Size: tens
@@ -376,8 +379,24 @@ the natural moment for, but each widens scope or touches the mod-facing API and 
 ### Left alone, deliberately
 
 `ResourceLocation` as the name type; the event bus and `RegistryEvent` as the registration hook (the content
-changes, the shape does not); recipes, ore dictionary, capabilities, loot tables, advancements (name-keyed
-already); anything about what a block or item *is*. This is an ID system, not a content system.
+changes, the shape does not); recipes, capabilities, loot tables, advancements (name-keyed already); anything
+about what a block or item *is*. This is an ID system, not a content system. **Ore dictionary** is out too:
+it belongs with the tag system Rongmario is working out, not here.
+
+## Prior art, compared
+
+Checked against modern Minecraft, Fabric, NeoForge, Bedrock and the 1.12 ID mods, to see what they got right
+and whether any of it beats what is here. Two small borrowings; nothing structural.
+
+| System | What it does | Versus this design |
+|---|---|---|
+| **Vanilla 1.13+** | Per-state global ids, dense, derived from registry order; chunk palettes by name; 1.16 indices don't span longs | Same three choices (`BlockStateIdMap`, `SectionBlockFormat`). Vanilla has no notion of a *missing modded* entry; that hole is what the manifest fills. |
+| **Fabric registry sync** | Server sends full name→id maps; the client **remaps itself** to the server's ids (client-only entries hidden, server-only entries throw); three callbacks exist so mod caches survive the remap | Derived numbering removes the category: ids never change within a session, so no remap, no callbacks, one hash per registry instead of maps. **Taken:** Fabric skips registries with no modded entries (`MODDED` attribute); a vanilla-only registry has known content. Do the same. |
+| **Fabric PR #5503 (2025)** | Warning / backup screen when opening a world with missing content registry entries; details page listing them; only selected registries, only non-`minecraft` entries | The manifest design, arrived at independently. **Taken:** exclude the `minecraft:` namespace from the manifest; vanilla cannot go missing, so recording it is pure size. |
+| **NeoForge** | Still full frozen snapshots per registry; client reverts on disconnect. PR #372: a full-snapshot revert replaced intrusive holders and broke worldgen; fixed by id-only snapshots | The client here never changes state on connect, so there is no revert and no such class of bug. Nothing to take. |
+| **Bedrock** | Block network id = FNV1a-32 of the canonical state NBT: no id sync at all. Costs 5 bytes per id on the wire vs 1–2, admits collisions (`unknown` = -2 special case); PocketMine declined it for bandwidth | Same goal (no id sync at connect), different route: dense ids plus one verification hash, 1–2 byte ids, no collision risk. Not adopting. |
+| **REID / JEID** | 1.13 chunk format in 1.12; int biome array; 49 per-mod mixins; since v2.3 a `BiomeApi.updateBiome(chunk, pos, id)` so mods stop casting internals | Same format; the 49 mixins become one generic transformer; `getBiomeIds().set` is the API. REID handles CubicChunks' 3D biomes by y-level: CubicChunks is a real consumer of the `(x, y, z)` biome API, which supports the readiness constraint. |
+| **NEID** | `Blocks16`: 16-bit block ids | A 65535 cap. Nothing to take. |
 
 ## What this removes
 
@@ -500,6 +519,7 @@ To do:
 - [x] Recipes, data serializers and entity types are `ForgeRegistry`s and vanilla's wrappers forward to them,
       so derived numbering already covers every lookup (verified, no change needed).
 - [ ] Stop writing `FML Registries`; read it once on first load of an old world to build the legacy maps.
+- [ ] `RegistrySync.local`: skip registries with no non-`minecraft` entries.
 - [ ] Audit Cleanroom patches for any other saved numeric registry ID.
 - [ ] Metadata as a compatibility view only: `getStateFromMeta`/`getMetaFromState` stay for mods, nothing
       internal uses `id << 4 | meta` except the legacy chunk reader.
