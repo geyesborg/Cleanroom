@@ -164,7 +164,7 @@ given the direction, so `ChunkBiomes` is shaped now so a Y axis can be added wit
 ### Missing biomes
 
 A saved biome name that no longer resolves currently falls back to plains (vanilla behaviour). Under the
-manifest design that is a retention case like blocks: keep the name, read as plains, write the name back.
+retention design that is a case like blocks: keep the name, read as plains, write the name back.
 
 ## World height (boundary only)
 
@@ -256,73 +256,47 @@ guards the packet layouts and the handshake (3 once the hash handshake lands; 2 
 Packets that carry IDs use varints or ints (block states, entity types, potions, enchantments, biomes, items,
 `SPacketWindowProperty` values). Chunk-packet biomes are 256 varints.
 
-## Missing content: manifest and retention
+## `level.dat` and missing content
 
-**Proposed, not started. Last piece of the work; needs Rongmario's opinion before it is built.**
+Revised after Rongmario's review (2026-10-08). Two things that were tangled are now separate: what the **ID
+system** needs from `level.dat` (almost nothing), and a **missing-content** feature that this work unblocks but
+does not depend on.
 
-No placeholder entries. Two situations want different behaviour and placeholders serve neither well:
-testing a pack (mods come and go, you don't care what's missing, the world must just open) and a long-running
-world (you rarely remove a mod on purpose; missing content is usually a mistake you want to undo). A
-placeholder lets you keep playing on a world that has quietly lost content.
+### What the ID system does to `level.dat`
 
-### World manifest
+Not a new layout. One compound goes: `FML Registries` (Forge's name→number table under `FML`), because
+nothing reads numbers from a save anymore. The `cleanroom_ids.Format` marker already on the branch stays.
+Everything else in `level.dat` is untouched. On first load of an old world the table is read once to decode
+chunks still holding numbers (see "Older worlds"), then not written back.
 
-Written on save, replaces `FML Registries` in `level.dat`:
+That is the whole `level.dat` change. Dummies, blocked ids, snapshots, `FROZEN`/`STAGING` and
+`injectSnapshot` exist to reconcile saved numbers; with none saved, they go.
 
-- per registry, the list of registered **names** when the world was last saved, **excluding the `minecraft:`
-  namespace** (vanilla cannot go missing; recording it is pure size — Fabric's missing-content check makes the
-  same cut);
-- the mod list (ids and versions).
+### Missing content (separate feature, opt-in retention)
 
-Chunks already hold names, so nothing else is snapshotted: the names in a chunk *are* its snapshot. Size: tens
-of thousands of short strings for a large pack, roughly 1-2 MB compressed, less than one region file. Under
-100 KB for a 36-mod world.
+With saves by name, a mod's removal leaves names that do not resolve: a block reads as air, an item has no
+`Item`, a tile entity or entity is not instantiated. No placeholder entries. What happens to those names is
+the user's choice, made on a screen like Forge's missing-entries screen:
 
-On load the manifest is diffed against the registries:
+- **Retain**: unresolved names are preserved through load and save so the content comes back if the mod does
+  (same version or any later version that keeps the names). Chunk palettes keep the unresolved entry (one
+  palette slot per missing state per section; the cell reads as air in memory and writes the original name on
+  save), items keep their NBT in the slot (movable, not usable), tile-entity and entity NBT stays with the
+  chunk uninstantiated. The only loss is a real player action taken meanwhile, e.g. placing a block where one
+  read as air.
+- **Remove**: a clean removal, as today.
 
-| Situation | Behaviour |
-|---|---|
-| Nothing missing | Load. Rewrite the manifest. |
-| Missing names, world is new or barely played | Load. Log what is missing. Missing blocks read as air, missing items show as unusable. (Testing.) |
-| Missing names, world has real playtime | Stop and list the mods and entry counts. Offer "load anyway" (same as above) or go fix the profile. |
+Retention state lives in **its own `.dat` beside `level.dat`**, not in `level.dat`: it records, per registry,
+the registered names at last save **excluding `minecraft:`** (vanilla cannot go missing) and the mod list, so
+the screen can say what is missing and from which mod. `level.dat` stays as it was. A missing or unparseable
+retention file means "no information": load normally, write it on save, never refuse a world over it.
 
-"Real playtime": default to the world's `Time` tag in `level.dat` (total ticks, already there). Under one
-in-game day (24000 ticks, 20 minutes) is "new or barely played". Overridable per world. No new flag and no
-`InhabitedTime` sum needed.
+No tooltip, no F3 readout: there is nothing to describe, since a missing block *is* air and a missing item has
+no `Item` to render. The retention file holds the names if anyone later wants to surface them.
 
-The manifest is also a plain record of what a world was made of: diffing two manifests shows what a mod update
-added to or removed from the registries. Free, and useful to pack authors.
-
-Replaces dummies, resuscitation, blocked IDs and the "missing entries" dialog. `MissingMappings` (mod renames)
-keeps working on names, which is what it always keyed on.
-
-### Retention rule
-
-**Unresolved names are preserved through load and save.** This is what makes "load anyway" a genuine undo: put
-the mod back (same version or any later version that keeps the names) and everything is where it was, with its
-metadata, NBT and tile entity data. The system does not check versions.
-
-- **Chunk blocks:** an unresolved palette entry is kept in the section palette. In memory the cell reads as air.
-  On save, any cell still pointing at it writes the original name. Cost: one palette entry per missing state per
-  section. Untouched and unmodified chunks are never rewritten anyway.
-- **Items:** a stack whose item does not resolve stays in the slot as its original NBT. It can be moved, stored
-  and dropped (the entity keeps the NBT); it cannot be used, crafted with or placed.
-- **Tile entities and entities:** their NBT stays with the chunk, not instantiated, until the type resolves again.
-
-The only loss is a real player action taken while the mod was out, e.g. placing a block into a cell that read as
-air. That should stick.
-
-### What the player sees
-
-- **Blocks:** nothing. A missing block is air; there is no block object to render. Deliberate: a visible
-  placeholder block could be broken, and breaking it loses the name. Air cannot be broken. The cost is that a
-  missing block and a real air block look the same; the fix is an F3 / debug readout
-  (`missing: thermalfoundation:ore[type=copper]`), not a block.
-- **Items:** the standard missing-texture square (no `Item` means no model), with the saved name as the tooltip
-  (`thermalfoundation:material`, damage, and the mod id on a second line so you know which jar to restore).
-- **Tile entities, entities:** nothing; see above.
-
-The only purple the player ever sees is in an inventory slot, and it always says what it is.
+Dropped from this design: the "real playtime" heuristic (the screen makes it an explicit choice, so no
+threshold is needed) and the `MissingMappings` alias table (an optimisation so a mod's rename answer is
+recorded once instead of re-asked each load; not required, revisit separately if ever).
 
 ## Older worlds
 
@@ -354,10 +328,8 @@ The legacy `id << 4 | meta` state map exists only for this conversion.
 - **Callbacks run once, after all registrations, in registry order.** Forge's `addCallback`/`setup()` order
   depends on `BitSet` assignment and has bitten mods (block→item map built before all blocks exist). With
   deterministic numbering the trap is avoidable; the rewrite must not keep it by accident.
-- **`MissingMappings` fires once per name, ever.** A remap (`old → new`) is recorded in the world manifest as
-  an alias; chunks still holding `old` resolve through it and the event is not asked again. Forge re-asks on
-  every world load. **Depends on the manifest**: until that lands, `MissingMappings` keeps Forge's
-  every-load behaviour.
+- **`MissingMappings` keeps Forge's behaviour** (fires on each world load for a name a mod renamed). Recording
+  the answer once was considered and dropped from this design as an optimisation; revisit separately if ever.
 
 ## Beyond Forge: further structural changes
 
@@ -375,7 +347,7 @@ the natural moment for, but each widens scope or touches the mod-facing API and 
   mod declares its name, but after registration the registry's own index is authoritative and the entry's field
   is not consulted. Removes the "registry name already set" class of errors.
 - **One world load path.** Forge branches three ways in `injectSnapshot` (fresh, matching, mismatched). With
-  no numbers to reconcile there is one: read manifest, diff, resolve names.
+  no numbers to reconcile there is one: resolve names; the retention feature, if present, reports what did not.
 
 ### Forge mistakes to fix here (maintainer decisions)
 
@@ -421,9 +393,9 @@ and whether any of it beats what is here. Two small borrowings; nothing structur
 
 | System | What it does | Versus this design |
 |---|---|---|
-| **Vanilla 1.13+** | Per-state global ids, dense, derived from registry order; chunk palettes by name; 1.16 indices don't span longs | Same three choices (`BlockStateIdMap`, `SectionBlockFormat`). Vanilla has no notion of a *missing modded* entry; that hole is what the manifest fills. |
+| **Vanilla 1.13+** | Per-state global ids, dense, derived from registry order; chunk palettes by name; 1.16 indices don't span longs | Same three choices (`BlockStateIdMap`, `SectionBlockFormat`). Vanilla has no notion of a *missing modded* entry; that hole is what the retention feature fills. |
 | **Fabric registry sync** | Server sends full name→id maps; the client **remaps itself** to the server's ids (client-only entries hidden, server-only entries throw); three callbacks exist so mod caches survive the remap | Derived numbering removes the category: ids never change within a session, so no remap, no callbacks, one hash per registry instead of maps. **Taken:** Fabric skips registries with no modded entries (`MODDED` attribute); a vanilla-only registry has known content. Do the same. |
-| **Fabric PR #5503 (2025)** | Warning / backup screen when opening a world with missing content registry entries; details page listing them; only selected registries, only non-`minecraft` entries | The manifest design, arrived at independently. **Taken:** exclude the `minecraft:` namespace from the manifest; vanilla cannot go missing, so recording it is pure size. |
+| **Fabric PR #5503 (2025)** | Warning / backup screen when opening a world with missing content registry entries; details page listing them; only selected registries, only non-`minecraft` entries | The retention design, arrived at independently. **Taken:** exclude the `minecraft:` namespace from the retention file; vanilla cannot go missing, so recording it is pure size. |
 | **NeoForge** | Still full frozen snapshots per registry; client reverts on disconnect. PR #372: a full-snapshot revert replaced intrusive holders and broke worldgen; fixed by id-only snapshots | The client here never changes state on connect, so there is no revert and no such class of bug. Nothing to take. |
 | **Bedrock** | Block network id = FNV1a-32 of the canonical state NBT: no id sync at all. Costs 5 bytes per id on the wire vs 1–2, admits collisions (`unknown` = -2 special case); PocketMine declined it for bandwidth | Same goal (no id sync at connect), different route: dense ids plus one verification hash, 1–2 byte ids, no collision risk. Not adopting. |
 | **REID / JEID** | 1.13 chunk format in 1.12; int biome array; 49 per-mod mixins; since v2.3 a `BiomeApi.updateBiome(chunk, pos, id)` so mods stop casting internals | Same format; the 49 mixins become one generic transformer; `getBiomeIds().set` is the API. REID handles CubicChunks' 3D biomes by y-level: CubicChunks is a real consumer of the `(x, y, z)` biome API, which supports the readiness constraint. |
@@ -447,8 +419,8 @@ and whether any of it beats what is here. Two small borrowings; nothing structur
 
 - **Hash mismatch on login:** refused. The disconnect screen names the registry and, from the counts, says
   whether the client or the server has more entries. Not a silent kick.
-- **Corrupt or unparseable manifest:** treated as "no manifest": load, warn, rewrite it on save. Never refuse a
-  world over the manifest; vanilla's `level.dat_old` is still there if it mattered.
+- **Corrupt or unparseable retention `.dat`:** treated as absent: load, warn, rewrite it on save. Never refuse a
+  world over it; `level.dat` is untouched by the feature.
 - **Registration after freeze:** hard error naming the mod, as Forge. The immutable array makes it impossible
   to silently corrupt the numbering, which is why the error exists.
 - **Two mods register one name:** Forge's override rules survive. The later registration replaces the earlier
@@ -457,7 +429,8 @@ and whether any of it beats what is here. Two small borrowings; nothing structur
 - **Sort collisions:** impossible; names are unique keys. `ResourceLocation` lowercases, so two names differing
   only in case are one name, as today.
 - **A mod stores a number** (see Compatibility for mods): breaks on the next launch with a different pack. We
-  cannot detect it; the manifest diff makes the symptom (a block or item that is "wrong") attributable.
+  cannot detect it; the retention file's mod list makes the symptom (a block or item that is "wrong")
+  attributable.
 
 ## Testing the rewrite
 
@@ -508,13 +481,11 @@ Grouped by what each gates.
 **The premise (built; needs an explicit yes before merge).** `getID` no longer returns the same number
 across sessions; a mod that saved a registry number to disk breaks. Phases 1-3 are built and tested on this.
 
-**The manifest and retention design (gates `FROZEN`/`STAGING`, dummies, snapshots, `FML Registries`,
-`MissingMappings`-once).**
-- Manifest instead of placeholder entries: right approach?
-- "Real playtime" for the load-time warning: proposed default is `level.dat` `Time` under one in-game day
-  means barely played, overridable per world.
-- "Load anyway": keep unresolved names in chunks and items so the content returns with the mod (proposed), or
-  treat it as a clean removal?
+**`level.dat` and missing content: answered (2026-10-08).** Rongmario: the load-time diff is not an ID
+concern; retention goes in a separate `.dat` with a popup like the missing-entries screen asking whether to
+retain; no tooltip/F3. Adopted as written in "`level.dat` and missing content". Dropping `FML Registries`
+(the only `level.dat` change the ID system needs) is therefore unblocked, and with it `FROZEN`/`STAGING`,
+dummies, blocked ids, snapshots. The retention feature itself is separate work.
 
 **API-visible changes, in or out (improvements over Forge, but mods/clients see them).**
 - Single registration phase: every registry open in one event, instead of block → item → rest.
@@ -553,7 +524,7 @@ To do:
       ids still come from the `BitSet` until freeze.
 - [x] `BitSet`, `min`/`max`, every `MAX_*_ID`/`MIN_ITEM_ID` removed; `setIDRange`/`setMaxID` are deprecated
       no-ops. 70,000 entries register and number densely.
-- [ ] Remove snapshots and dummies (with the manifest).
+- [ ] Remove snapshots and dummies (see the `level.dat` block below).
 - [ ] Immutable array after freeze; remove public `unfreeze()`.
 - [ ] One manager; drop `FROZEN`/`STAGING` and freeze/revert copying.
 - [ ] Derived indices (block states, block→item, entity class→entry) as typed classes rebuilt on freeze.
@@ -561,8 +532,8 @@ To do:
 - [ ] Callbacks once after all registrations, in registry order.
 - [x] Login sync: one `RegistryHashes` message (per-registry count + SHA-256 of the ordered names) replaces
       `RegistryData`; the client verifies and never renumbers to the server (`RegistrySync`). Network format 3.
-      Interim: a server world holding Forge dummies hashes their names, so no client can join it until the
-      manifest replaces dummies.
+      Interim: a server world holding Forge dummies hashes their names, so no client can join it until
+      dummies are removed (the `level.dat` block below).
 - [x] Recipes, data serializers and entity types are `ForgeRegistry`s and vanilla's wrappers forward to them,
       so derived numbering already covers every lookup (verified, no change needed).
 - [ ] Stop writing `FML Registries`; read it once on first load of an old world to build the legacy maps.
@@ -584,13 +555,17 @@ To do:
       Traverse and read the transformer's info lines.
 - [ ] `ChunkBiomes` indexed `(x, y, z)` with one layer; layer count in save and packet.
 
-Last, pending Rongmario's review (see "Missing content"):
+`level.dat` (unblocked by Rongmario's answer; ID-system work):
 
-- [ ] World manifest in `level.dat` (names per registry, mod list).
-- [ ] Load-time diff; "real playtime" from `Time` with a per-world override; remove the missing-entry dialogs.
-- [ ] `MissingMappings` once per name via a manifest alias table.
+- [ ] Stop writing `FML Registries`; read it once on first load of an old world for the legacy maps.
+- [ ] Remove dummies, blocked ids, `Snapshot` save/load, `injectSnapshot`'s reconciliation, `FROZEN`/`STAGING`
+      and `revertToFrozen`; one registry manager.
+
+Missing content (separate feature; retention is opt-in via a popup, state in its own `.dat`):
+
+- [ ] Missing-entries screen: list what is missing and from which mod; "Retain" / "Remove".
+- [ ] Retention `.dat`: per-registry non-`minecraft` names at last save, mod list; tolerant of absence.
 - [ ] Retention: unresolved names kept in section palettes, item NBT and TE/entity NBT through save.
-- [ ] Missing-item tooltip and F3 readout for missing blocks.
 - [ ] Golden-world fixtures: Forge (from `creative`), JEID, NEID; conversion tests against recorded dumps.
 - [ ] Two-sided network test: same mods, client-only mod, different mods.
 - [ ] Mod-shaped tests, one per compatibility-table row.
