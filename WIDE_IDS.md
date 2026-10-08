@@ -237,9 +237,12 @@ something differs) and reconciles against it:
 - A registry the server does not send at all is client-only and ignored.
 The client reverts to its own derived numbering on disconnect, as it must (the next server may differ).
 
-*Status:* the hash check and refusal are built (`RegistrySync`). The name-list request and client-side
-reconciliation are **not yet built**; today a client with extra entries in a synced registry is refused. This
-is the "server decides" behaviour and it is the next network item.
+*Status:* built. `RegistryNamesRequest` (client→server) and `RegistryNames` (server→client, split at
+512 KiB so no chunk needs the payload multiplexer) carry the list only on mismatch; the client reconciles on
+its render thread (`ForgeRegistry.adoptOrder`), fires `FMLModIdMappingEvent` so caches rebuild, and its own
+derived numbering returns on disconnect through the existing `revertToFrozen`. A registry absent on the
+client reports every server entry as missing. The client state flow could not be driven in the unit harness
+(`TestNetworkHandshake` is disabled upstream); `reconcile`/`adoptOrder` are tested directly.
 
 **Overrides** (two mods registering one name) do not need syncing: an override changes which object is behind
 a name, not the order of names, so the hash and the numbers are unaffected. If only one side has the overriding
@@ -501,10 +504,12 @@ dummies, blocked ids, snapshots. The retention feature itself is separate work.
 **Modifiable registries renumbering mid-session (found in review).** Recipes are `allowModification()`:
 CraftTweaker's `/ct reload` or any runtime recipe removal does `unfreeze()` → change → `freeze()`, which
 renumbers densely, so removing one recipe shifts every later recipe id for every connected client until they
-reconnect. Forge left a hole, so only the removed id was affected. Options: (a) for modifiable registries,
-pin numbering once the server is running and append new entries after the pinned block (a deliberate
-exception to "derived at freeze", scoped to registries nothing saves); (b) accept it and document
-"reconnect after a recipe reload". Proposed: (a).
+reconnect. Forge left a hole, so only the removed id was affected. Options: (a) pin numbering for modifiable
+registries once the server is running and append new entries (holes for removals; breaks the dense invariant,
+the hash and `getRaw` would need hole handling); (b) accept it and document "reconnect after a recipe
+reload", which is what 1.12 CraftTweaker users already do (`/ct reload` has never updated connected
+clients' recipe books reliably). Proposed: **(b)**, revisit if a reload path that updates clients in place
+appears.
 
 **Hash handshake edge: resolved in design (2026-10-08).** The server's numbering is authoritative. On
 mismatch the client fetches the server's name list and renumbers to it, appending its own extras; only names
@@ -552,11 +557,10 @@ To do:
       so derived numbering already covers every lookup (verified, no change needed).
 - [ ] Stop writing `FML Registries`; read it once on first load of an old world to build the legacy maps.
 - [ ] `RegistrySync.local`: skip registries with no non-`minecraft` entries.
-- [ ] Server-authoritative reconciliation on hash mismatch: client requests the server's name list for the
-      registry, renumbers to it, appends client-only extras; refusal names the exact missing entries; revert to
-      own numbering on disconnect.
-- [ ] Make `unfreeze()` non-public: a registry freezes once at startup and never reopens. The recipe reload is
-      handled as its own case (pinned numbering for modifiable registries), not by reopening.
+- [x] Server-authoritative reconciliation on hash mismatch (`RegistryNamesRequest`/`RegistryNames`,
+      `ForgeRegistry.adoptOrder`); refusal names the exact missing entries; own numbering returns on disconnect.
+- [x] `unfreeze()` is package-private; no live main-code caller existed. The recipe reload goes through
+      `GameData.revert`, not `unfreeze` (see the open question on modifiable registries).
 - [x] Audit for saved numeric registry ids: found potion effects, beacon effects, enchantment lists and the
       piston's `blockId` (see Saving). Villagers, tile ticks, entities, spawners, items were already names.
 - [x] Audit for numeric-offset conventions: clean. `MUTATION_TO_BASE_ID_MAP` is an object map, `GenLayer`s

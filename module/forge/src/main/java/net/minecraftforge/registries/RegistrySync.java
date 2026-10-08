@@ -23,8 +23,10 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import javax.annotation.Nullable;
@@ -131,5 +133,85 @@ public final class RegistrySync
             }
         }
         return problems.isEmpty() ? null : String.join("\n", problems);
+    }
+
+    /**
+     * The registries {@link #check(List, RegistryManager)} would complain about: absent locally,
+     * fewer local entries than the server sent, or a hash mismatch on the server's entries.
+     */
+    public static List<ResourceLocation> mismatches(List<Entry> remote, RegistryManager local)
+    {
+        List<ResourceLocation> ret = new ArrayList<>();
+        for (Entry entry : remote)
+        {
+            ForgeRegistry<?> reg = local.registries.get(entry.registry());
+            if (reg == null || reg.getKeys().size() < entry.count() || hash(reg, entry.count()) != entry.hash())
+            {
+                ret.add(entry.registry());
+            }
+        }
+        return ret;
+    }
+
+    /**
+     * This registry's entry names in id order, 0..size-1. Throws if an id in range is empty.
+     */
+    public static List<ResourceLocation> namesInOrder(ForgeRegistry<?> reg)
+    {
+        return namesInOrderTyped(reg);
+    }
+
+    @SuppressWarnings("deprecation") // getRaw(int) is public for id-indexed reads like this
+    private static <V extends IForgeRegistryEntry<V>> List<ResourceLocation> namesInOrderTyped(ForgeRegistry<V> reg)
+    {
+        int size = reg.getKeys().size();
+        List<ResourceLocation> ret = new ArrayList<>(size);
+        for (int i = 0; i < size; i++)
+        {
+            V value = reg.getRaw(i);
+            if (value == null)
+                throw new IllegalStateException("Registry has no entry at id " + i + " of " + size + " (is it frozen?)");
+            ResourceLocation name = reg.getKey(value);
+            if (name == null)
+                throw new IllegalStateException("Registry entry at id " + i + " has no name");
+            ret.add(name);
+        }
+        return ret;
+    }
+
+    /**
+     * The result of adopting a remote name order: the remote names this registry lacks (the client
+     * cannot represent them, so nothing was renumbered), and whether any local id changed.
+     */
+    public record Reconciliation(List<ResourceLocation> missingLocally, boolean renumbered) { }
+
+    /**
+     * Reconciles this registry against a name order the remote sent: if every remote name exists
+     * locally, {@link ForgeRegistry#adoptOrder} renumbers to the remote order with local extras
+     * appended; otherwise nothing is touched and the missing names are reported back.
+     */
+    public static Reconciliation reconcile(ForgeRegistry<?> reg, List<ResourceLocation> serverNames)
+    {
+        List<ResourceLocation> missing = new ArrayList<>();
+        for (ResourceLocation name : serverNames)
+        {
+            if (!reg.getKeys().contains(name))
+                missing.add(name);
+        }
+        if (!missing.isEmpty())
+        {
+            return new Reconciliation(missing, false);
+        }
+        reg.adoptOrder(serverNames);
+        return new Reconciliation(Collections.emptyList(), !reg.lastRenumber().isEmpty());
+    }
+
+    /**
+     * The {old id, new id} pairs the last renumber() or adoptOrder() installed in this registry,
+     * keyed by entry name, or an empty map. The FMLModIdMappingEvent shape.
+     */
+    public static Map<ResourceLocation, Integer[]> lastRemap(ForgeRegistry<?> reg)
+    {
+        return reg.lastRenumber();
     }
 }

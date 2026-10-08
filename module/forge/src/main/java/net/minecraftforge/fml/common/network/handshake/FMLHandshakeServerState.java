@@ -27,9 +27,11 @@ import java.util.function.Consumer;
 import net.minecraftforge.fml.common.FMLLog;
 import net.minecraftforge.fml.common.Loader;
 import net.minecraftforge.fml.common.network.NetworkRegistry;
+import net.minecraft.util.ResourceLocation;
 import net.minecraftforge.fml.common.network.internal.FMLMessage;
 import net.minecraftforge.fml.common.network.internal.FMLNetworkHandler;
 import net.minecraftforge.fml.relauncher.Side;
+import net.minecraftforge.registries.ForgeRegistry;
 import net.minecraftforge.registries.RegistryManager;
 import net.minecraftforge.registries.RegistrySync;
 
@@ -93,6 +95,24 @@ enum FMLHandshakeServerState implements IHandshakeState<FMLHandshakeServerState>
         @Override
         public void accept(ChannelHandlerContext ctx, FMLHandshakeMessage msg, Consumer<? super FMLHandshakeServerState> cons)
         {
+            if (msg instanceof FMLHandshakeMessage.RegistryNamesRequest)
+            {
+                // A client whose hash mismatched asks for our name order per registry. Answer and
+                // stay in COMPLETE: its HandshakeAck still has to arrive here to finish the login.
+                for (ResourceLocation name : ((FMLHandshakeMessage.RegistryNamesRequest)msg).registries())
+                {
+                    ForgeRegistry<?> reg = RegistryManager.ACTIVE.getRegistry(name);
+                    if (reg == null)
+                    {
+                        continue; // not a registry we sync - ignore the request
+                    }
+                    for (FMLHandshakeMessage.RegistryNames reply : FMLHandshakeMessage.RegistryNames.split(name, RegistrySync.namesInOrder(reg)))
+                    {
+                        ctx.writeAndFlush(reply).addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
+                    }
+                }
+                return;
+            }
             cons.accept(DONE);
             // Poke the client
             ctx.writeAndFlush(new FMLHandshakeMessage.HandshakeAck(ordinal())).addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);

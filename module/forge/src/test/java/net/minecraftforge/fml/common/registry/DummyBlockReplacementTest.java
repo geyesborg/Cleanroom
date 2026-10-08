@@ -31,6 +31,7 @@ import net.minecraftforge.registries.ForgeRegistry;
 import net.minecraftforge.registries.GameData;
 import net.minecraftforge.registries.ObjectHolderRegistry;
 import net.minecraftforge.registries.RegistryManager;
+import net.minecraftforge.registries.RegistryTestAccess;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -98,7 +99,7 @@ public class DummyBlockReplacementTest
         assertNotEquals(fnd, testDirtBlock, "Did not find my block");
         assertEquals(fnd, Blocks.AIR, "Found a default air block");
 
-        ((ForgeRegistry<Block>)RegistryManager.ACTIVE.getRegistry(Block.class)).unfreeze();
+        RegistryTestAccess.unfreeze((ForgeRegistry<Block>)RegistryManager.ACTIVE.getRegistry(Block.class));
         RegistryManager.ACTIVE.getRegistry(Block.class).register(testDirtBlock.setRegistryName(myDirt));
         fnd = blockRegistry.getValue(myDirt);
         assertEquals(fnd, testDirtBlock, "Found my block");

@@ -632,7 +632,7 @@ public class ForgeRegistry<V extends IForgeRegistryEntry<V>> implements IForgeRe
         renumber(RegistryManager.VANILLA);
     }
 
-    public void unfreeze()
+    void unfreeze()
     {
         this.isFrozen = false;
         this.byId = null;
@@ -680,11 +680,79 @@ public class ForgeRegistry<V extends IForgeRegistryEntry<V>> implements IForgeRe
         this.byId = byId;
         this.idOf = idOf;
         this.generation++; // after the arrays are in place, so a cache rebuilt now sees the new order
+        verifyNumbering();
+    }
 
+    /**
+     * Installs a name order a remote side sent during login: the given names take ids
+     * 0..order.size()-1 in the order given and every local name the remote did not send (client-only
+     * extras) is appended in {@link ResourceLocation} order. Verified exactly like
+     * {@link #renumber(RegistryManager)} before it is installed, and freezes the registry: while the
+     * remote order is in force this registry belongs to the connection.
+     */
+    void adoptOrder(List<ResourceLocation> order)
+    {
+        Set<ResourceLocation> ordered = Sets.newHashSet(order);
+        if (ordered.size() != order.size())
+            throw new IllegalArgumentException("adoptOrder given an order with a duplicated name");
+
+        int size = this.names.size();
+        IdentityHashMap<V, Integer> adopted = new IdentityHashMap<V, Integer>(size * 2);
+        for (ResourceLocation name : order)
+        {
+            V value = this.names.get(name);
+            if (value == null)
+                throw new IllegalArgumentException(String.format("adoptOrder given %s which this registry does not contain", name));
+            adopted.put(value, adopted.size());
+        }
+        List<ResourceLocation> extras = new ArrayList<ResourceLocation>();
+        for (ResourceLocation name : this.names.keySet())
+        {
+            if (!ordered.contains(name))
+                extras.add(name);
+        }
+        extras.sort(Comparator.comparing(ResourceLocation::toString));
+        for (ResourceLocation name : extras)
+        {
+            adopted.put(this.names.get(name), adopted.size());
+        }
+
+        Map<ResourceLocation, Integer[]> renumbered = new HashMap<ResourceLocation, Integer[]>();
+        for (Entry<ResourceLocation, V> entry : this.names.entrySet())
+        {
+            int newId = adopted.get(entry.getValue());
+            int oldId = getID(entry.getValue()); // still the previous numbering
+            if (oldId != newId)
+            {
+                renumbered.put(entry.getKey(), new Integer[] { oldId, newId });
+            }
+        }
+        this.lastRenumber = renumbered;
+
+        @SuppressWarnings("unchecked")
+        V[] byId = (V[])Array.newInstance(this.superType, size);
+        for (Map.Entry<V, Integer> entry : adopted.entrySet())
+        {
+            byId[entry.getValue()] = entry.getKey();
+        }
+        this.byId = byId;
+        this.idOf = adopted;
+        this.generation++; // after the arrays are in place, so a cache rebuilt now sees the new order
+        verifyNumbering();
+        this.isFrozen = true;
+    }
+
+    /**
+     * The invariant every installed numbering must satisfy: dense 0..N-1, and the name lookup and the
+     * value lookup agree on every id.
+     */
+    private void verifyNumbering()
+    {
+        int size = this.names.size();
         ResourceLocation regName = this.stage.getName(this);
         for (int i = 0; i < size; i++)
         {
-            if (byId[i] == null)
+            if (this.byId[i] == null)
                 throw new IllegalStateException(String.format("Registry %s: derived numbering left id %d empty.", regName, i));
         }
         for (Entry<ResourceLocation, V> entry : this.names.entrySet())

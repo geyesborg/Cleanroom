@@ -2,6 +2,7 @@ package net.minecraftforge.registries;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -20,6 +21,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -220,5 +222,144 @@ public class RegistrySyncTest
 
         assertEquals(entries, in.entries());
         buf.release();
+    }
+
+    @Test
+    public void clientExtraInTheMiddleIsReconciledNotRefused()
+    {
+        ResourceLocation name = new ResourceLocation("wideids_test", "adopt_blocks");
+        RegistryManager server = new RegistryManager("SYNC_SERVER");
+        RegistryManager client = new RegistryManager("SYNC_CLIENT");
+        ForgeRegistry<Block> serverReg = blocks(server, name, "a", "b", "c");
+        ForgeRegistry<Block> clientReg = blocks(client, name, "a", "aab", "b", "c");
+
+        List<ResourceLocation> mismatches = RegistrySync.mismatches(RegistrySync.local(server, false), client);
+        assertEquals(Arrays.asList(name), mismatches);
+
+        RegistrySync.Reconciliation result = RegistrySync.reconcile(clientReg, RegistrySync.namesInOrder(serverReg));
+        assertTrue(result.missingLocally().isEmpty());
+        assertTrue(result.renumbered());
+
+        // Server order first, then the client-only extra appended: a=0, b=1, c=2, aab=3
+        assertEquals(0, clientReg.getID(new ResourceLocation("wideids_test", "a")));
+        assertEquals(1, clientReg.getID(new ResourceLocation("wideids_test", "b")));
+        assertEquals(2, clientReg.getID(new ResourceLocation("wideids_test", "c")));
+        assertEquals(3, clientReg.getID(new ResourceLocation("wideids_test", "aab")));
+        assertEquals(RegistrySync.hash(serverReg, 3), RegistrySync.hash(clientReg, 3));
+    }
+
+    @Test
+    public void serverHasMoreIsRefusedWithNames()
+    {
+        ResourceLocation name = new ResourceLocation("wideids_test", "missing_blocks");
+        RegistryManager server = new RegistryManager("SYNC_SERVER");
+        RegistryManager client = new RegistryManager("SYNC_CLIENT");
+        ForgeRegistry<Block> serverReg = blocks(server, name, "a", "b", "c");
+        ForgeRegistry<Block> clientReg = blocks(client, name, "a", "b");
+
+        int generation = clientReg.generation();
+        RegistrySync.Reconciliation result = RegistrySync.reconcile(clientReg, RegistrySync.namesInOrder(serverReg));
+        assertEquals(Arrays.asList(new ResourceLocation("wideids_test", "c")), result.missingLocally());
+        assertFalse(result.renumbered());
+
+        // Refused: the local numbering was not touched
+        assertEquals(generation, clientReg.generation());
+        assertEquals(0, clientReg.getID(new ResourceLocation("wideids_test", "a")));
+        assertEquals(1, clientReg.getID(new ResourceLocation("wideids_test", "b")));
+    }
+
+    @Test
+    public void reconcileThenRevertRestoresOwnNumbering()
+    {
+        ResourceLocation name = new ResourceLocation("wideids_test", "revert_blocks");
+        RegistryManager server = new RegistryManager("SYNC_SERVER");
+        RegistryManager client = new RegistryManager("SYNC_CLIENT");
+        ForgeRegistry<Block> serverReg = blocks(server, name, "a", "b", "c");
+        ForgeRegistry<Block> clientReg = blocks(client, name, "a", "aab", "b", "c");
+
+        RegistrySync.reconcile(clientReg, RegistrySync.namesInOrder(serverReg));
+        assertEquals(3, clientReg.getID(new ResourceLocation("wideids_test", "aab")));
+
+        // Disconnect reverts to the client's own derived numbering; loadRegistry ends in freeze()
+        int generation = clientReg.generation();
+        clientReg.freeze();
+        assertTrue(clientReg.generation() > generation);
+        assertEquals(1, clientReg.getID(new ResourceLocation("wideids_test", "aab")));
+        assertEquals(2, clientReg.getID(new ResourceLocation("wideids_test", "b")));
+    }
+
+    @Test
+    public void namesInOrderMatchesHash()
+    {
+        ResourceLocation name = new ResourceLocation("wideids_test", "order_blocks");
+        RegistryManager mgr = new RegistryManager("SYNC_ORDER");
+        ForgeRegistry<Block> reg = blocks(mgr, name, "c", "a", "b");
+
+        List<ResourceLocation> names = RegistrySync.namesInOrder(reg);
+        assertEquals(3, names.size());
+        try
+        {
+            MessageDigest sha = MessageDigest.getInstance("SHA-256");
+            for (ResourceLocation entry : names)
+            {
+                sha.update(entry.toString().getBytes(StandardCharsets.UTF_8));
+                sha.update((byte)0);
+            }
+            byte[] digest = sha.digest();
+            long hashed = 0;
+            for (int i = 0; i < 8; i++)
+            {
+                hashed = (hashed << 8) | (digest[i] & 0xFFL);
+            }
+            assertEquals(RegistrySync.hash(reg, names.size()), hashed);
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Test
+    public void registryNamesMessagesWireRoundTrip()
+    {
+        List<ResourceLocation> registries = Arrays.asList(new ResourceLocation("minecraft", "blocks"), new ResourceLocation("wideids_test", "extras"));
+        FMLHandshakeMessage.RegistryNamesRequest requestOut = new FMLHandshakeMessage.RegistryNamesRequest(registries);
+        ByteBuf buf = Unpooled.buffer();
+        requestOut.toBytes(buf);
+        FMLHandshakeMessage.RegistryNamesRequest requestIn = new FMLHandshakeMessage.RegistryNamesRequest();
+        requestIn.fromBytes(buf);
+        assertEquals(registries, requestIn.registries());
+        buf.release();
+
+        // Enough names to force a split: each serializes to ~22 bytes against a 512 KiB budget
+        ResourceLocation registry = new ResourceLocation("wideids_test", "many_names");
+        List<ResourceLocation> names = new ArrayList<>();
+        for (int i = 0; i < 40000; i++)
+        {
+            names.add(new ResourceLocation("wideids_test", "n" + i));
+        }
+        List<FMLHandshakeMessage.RegistryNames> parts = FMLHandshakeMessage.RegistryNames.split(registry, names);
+        assertTrue(parts.size() > 1, "expected the name list to be split");
+        for (int i = 0; i < parts.size(); i++)
+        {
+            assertEquals(i < parts.size() - 1, parts.get(i).hasMore());
+            buf = Unpooled.buffer();
+            parts.get(i).toBytes(buf);
+            FMLHandshakeMessage.RegistryNames in = new FMLHandshakeMessage.RegistryNames();
+            in.fromBytes(buf);
+            assertEquals(registry, in.registry());
+            assertEquals(parts.get(i).names(), in.names());
+            assertEquals(parts.get(i).hasMore(), in.hasMore());
+            buf.release();
+        }
+        List<ResourceLocation> reassembled = new ArrayList<>();
+        parts.forEach(part -> reassembled.addAll(part.names()));
+        assertEquals(names, reassembled);
+    }
+
+    @Test
+    public void unfreezeIsNotPublic() throws Exception
+    {
+        assertFalse(java.lang.reflect.Modifier.isPublic(ForgeRegistry.class.getDeclaredMethod("unfreeze").getModifiers()));
     }
 }
