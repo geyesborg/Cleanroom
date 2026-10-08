@@ -112,16 +112,7 @@ public class IdFormatContainer extends DummyModContainer implements WorldAccessC
         if (!hasChunks(world)) {
             return;
         }
-        LOGGER.info("World {} was saved before Cleanroom ID format {}: its chunks are converted as they are saved.", world.getName(), SAVE_FORMAT);
-        if ("true".equals(System.getProperty("fml.doNotBackup"))) {
-            LOGGER.warn("fml.doNotBackup is set: converting world {} without a backup.", world.getName());
-            return;
-        }
-        try {
-            ZipperUtil.backupWorld(world);
-        } catch (IOException e) {
-            throw new UncheckedIOException("Could not back up world " + world.getName() + " before converting it to Cleanroom ID format " + SAVE_FORMAT + ".", e);
-        }
+        LOGGER.info("World {} was saved before Cleanroom ID format {}: its chunks are converted as they are saved. An older Cleanroom, Forge, JEID, REID or NEID cannot load it afterwards.", world.getName(), SAVE_FORMAT);
     }
 
     private static boolean hasChunks(File world) {

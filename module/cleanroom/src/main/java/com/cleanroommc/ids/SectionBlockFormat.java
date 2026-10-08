@@ -5,6 +5,8 @@ import it.unimi.dsi.fastutil.objects.Reference2IntOpenHashMap;
 import net.minecraft.block.Block;
 import net.minecraft.block.properties.IProperty;
 import net.minecraft.block.state.IBlockState;
+import net.minecraft.init.Blocks;
+import net.minecraft.world.chunk.NibbleArray;
 import net.minecraft.nbt.NBTBase;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagIntArray;
@@ -69,6 +71,59 @@ public final class SectionBlockFormat {
             }
             return list;
         }
+    }
+
+    /**
+     * JEID/REID section: {@code Blocks}/{@code Data} are 12-bit indices into an int {@code Palette} of packed state ids
+     * ({@code blockId << 4 | meta}). Must be detected before the vanilla reader, which would treat those bytes as block ids.
+     */
+    public static boolean isJeidSection(NBTTagCompound section) {
+        return section.hasKey(PALETTE, 11) && section.hasKey("Blocks", 7) && section.hasKey("Data", 7);
+    }
+
+    /** NEID section: {@code Blocks16} is a big-endian block id per cell, {@code Data} is still the nibble meta. */
+    public static boolean isNeidSection(NBTTagCompound section) {
+        return section.hasKey(LegacyIdWorlds.BLOCKS16, 7);
+    }
+
+    public static void readJeid(NBTTagCompound section, BlockStateContainer data) {
+        int[] palette = section.getIntArray(PALETTE);
+        byte[] blocks = section.getByteArray("Blocks");
+        byte[] nibbles = section.getByteArray("Data");
+        if (palette.length == 0 || blocks.length < SIZE || nibbles.length < SIZE / 2) {
+            throw corrupt(section, "is a JEID section with a short palette, Blocks or Data array");
+        }
+        NibbleArray dataNibbles = new NibbleArray(nibbles);
+        for (int i = 0; i < SIZE; i++) {
+            int index = (blocks[i] & 255) << 4 | dataNibbles.get(i & 15, i >> 8 & 15, i >> 4 & 15);
+            if (index >= palette.length) {
+                throw corrupt(section, "refers to JEID palette entry " + index + " of " + palette.length);
+            }
+            int packed = palette[index];
+            data.set(i & 15, i >> 8, i >> 4 & 15, stateFromPacked(packed));
+        }
+    }
+
+    public static void readNeid(NBTTagCompound section, BlockStateContainer data) {
+        byte[] blocks = section.getByteArray(LegacyIdWorlds.BLOCKS16);
+        byte[] nibbles = section.getByteArray("Data");
+        if (blocks.length < SIZE * 2 || nibbles.length < SIZE / 2) {
+            throw corrupt(section, "is a NEID section with a short Blocks16 or Data array");
+        }
+        NibbleArray dataNibbles = new NibbleArray(nibbles);
+        for (int i = 0; i < SIZE; i++) {
+            int blockId = (blocks[i * 2] & 255) << 8 | blocks[i * 2 + 1] & 255;
+            int meta = dataNibbles.get(i & 15, i >> 8 & 15, i >> 4 & 15);
+            data.set(i & 15, i >> 8, i >> 4 & 15, stateFromPacked(blockId << 4 | meta));
+        }
+    }
+
+    private static IBlockState stateFromPacked(int packed) {
+        Block block = Block.getBlockById(LegacyIdWorlds.jeidBlockId(packed));
+        if (block == null) {
+            return Blocks.AIR.getDefaultState();
+        }
+        return block.getStateFromMeta(LegacyIdWorlds.jeidMeta(packed));
     }
 
     public static boolean isPaletted(NBTTagCompound chunk) {

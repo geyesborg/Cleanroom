@@ -40,28 +40,15 @@ public class WorldIdFormatTest {
     }
 
     @Test
-    public void migrationBacksUpTheSaveHandlersActualWorldDirectory() throws IOException {
+    public void migrationDoesNotArchiveTheWorld() throws IOException {
         SaveHandler handler = handler();
         Path world = handler.getWorldDirectory().toPath();
         Path region = Files.createDirectories(world.resolve("region")).resolve("r.0.0.mca");
         byte[] content = { 1, 7, 3, 9 };
         Files.write(region, content);
-        String previous = System.getProperty("fml.doNotBackup");
-        try {
-            System.clearProperty("fml.doNotBackup");
-            new IdFormatContainer().readData(handler, null, Map.of(), new NBTTagCompound());
-        } finally {
-            if (previous == null) System.clearProperty("fml.doNotBackup");
-            else System.setProperty("fml.doNotBackup", previous);
-        }
+        assertDoesNotThrow(() -> new IdFormatContainer().readData(handler, null, Map.of(), new NBTTagCompound()));
         try (var files = Files.list(directory)) {
-            var backups = files.filter(path -> path.getFileName().toString().endsWith(".zip")).toList();
-            assertEquals(1, backups.size());
-            try (ZipFile zip = new ZipFile(backups.getFirst().toFile())) {
-                try (var in = zip.getInputStream(zip.getEntry("region/r.0.0.mca"))) {
-                    assertArrayEquals(content, in.readAllBytes());
-                }
-            }
+            assertEquals(0, files.filter(path -> path.getFileName().toString().endsWith(".zip")).count());
         }
         assertArrayEquals(content, Files.readAllBytes(region));
     }
