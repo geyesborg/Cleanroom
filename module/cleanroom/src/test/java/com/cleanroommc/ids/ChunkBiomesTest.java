@@ -32,13 +32,13 @@ public class ChunkBiomesTest {
     }
 
     @Test
-    public void byteViewsRequireExactlyOneChunkOfColumns() {
+    public void byteArraysRequireExactlyOneChunkOfColumns() {
         for (int size : new int[] { 0, 255, 257 }) {
-            assertThrows(IllegalArgumentException.class, () -> new ChunkBiomes(chunk(), new byte[size]));
             ChunkBiomes biomes = chunk().getBiomeIds();
             biomes.set(0, Biome.getIdForBiome(Biomes.DESERT));
             int[] before = biomes.copy();
             assertThrows(IllegalArgumentException.class, () -> biomes.setLegacy(new byte[size]));
+            assertThrows(IllegalArgumentException.class, () -> biomes.setAllFromBytes(new byte[size]));
             assertArrayEquals(before, biomes.copy());
         }
     }
@@ -163,12 +163,12 @@ public class ChunkBiomesTest {
         int jungle = Biome.getIdForBiome(Biomes.JUNGLE);
         byte[] view = chunk.getBiomeArray();
         for (int i = 0; i < 256; i++) {
-            view[i] = (byte) jungle; // what chunk generators and biome-changing mods do
+            ChunkBiomes.storeByte(view, i, jungle); // what transformed mod code calls (I2B dropped)
         }
         for (int i = 0; i < 256; i++) {
             assertEquals(jungle, chunk.getBiomeIds().get(i));
         }
-        view[17] = (byte) 0xFF;
+        ChunkBiomes.storeByte(view, 17, (byte) 0xFF);
         assertEquals(ChunkBiomes.UNSET, chunk.getBiomeIds().get(17));
         chunk.setBiomeArray(new byte[256]);
         assertEquals(Biome.getIdForBiome(Biomes.OCEAN), chunk.getBiomeIds().get(17));
@@ -205,9 +205,9 @@ public class ChunkBiomesTest {
         byte[] view = chunk.getBiomeArray();
         assertEquals((byte) wide, view[0]);
 
-        // Read-modify-write, the common mod pattern: copy the byte to the neighbouring columns
+        // Read-modify-write, the common mod pattern, as transformed bytecode calls it
         for (int i = 1; i < 16; i++) {
-            view[i] = view[0];
+            ChunkBiomes.storeByte(view, i, ChunkBiomes.loadByte(view, 0));
         }
         for (int i = 0; i < 16; i++) {
             assertEquals(wide, chunk.getBiomeIds().get(i), "column " + i + " resolves through the chunk, not to the lowest id " + sharing[0]);
@@ -228,7 +228,7 @@ public class ChunkBiomesTest {
         int wide = wideBiomeSharingALowByte();
         int[] sharing = net.minecraftforge.registries.GameData.getBiomeIdsWithLowByte(wide & 0xFF);
         Chunk chunk = chunk(); // world is null: no provider to consult either
-        chunk.getBiomeArray()[0] = (byte) wide;
+        ChunkBiomes.storeByte(chunk.getBiomeArray(), 0, (byte) wide); // the truncated byte path
         assertEquals(sharing[0], chunk.getBiomeIds().get(0), "nothing in the chunk or the provider to disambiguate: a byte can't carry this biome");
     }
 

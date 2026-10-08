@@ -14,15 +14,17 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Map;
+import java.util.WeakHashMap;
 
 /**
  * A chunk's biomes as full runtime ids, one per x/z column ({@code z << 4 | x}), {@link #UNSET} where not generated.
  * <p>
- * The chunk's old {@code byte[]} ({@code Chunk.getBiomeArray()}) stays a live view: it holds each id's low byte, and
- * bytes that code writes into it are picked up the next time the biomes are read, by comparing the view with the
- * bytes last seen. A written byte means the biome whose id has that low byte; when several do (more than 256
- * biomes), the one the world's biome provider places in that column wins, which is what chunk generators write.
- * Code that knows full ids uses {@link #set}, {@link #get} and {@link #copy}.
+ * There is no {@code byte[256]} on the chunk anymore. {@code Chunk.getBiomeArray()} returns a throwaway
+ * {@linkplain #snapshotBytes snapshot}, and code reaching it untransformed reads correct low bytes while its writes
+ * are lost; the BiomeArrayTransformer rewrites array writes on it into {@link #storeByte}, which finds the owning
+ * chunk in a weak map and applies {@link #storeFromMod}.
  * <p>
  * Saved as {@code BiomePalette} (biome names, {@code ""} for unset) and {@code BiomeIndices} (256 palette indices,
  * absent for a single entry).
@@ -34,28 +36,18 @@ public final class ChunkBiomes {
     private static final int SIZE = 256;
     private static final Logger LOGGER = LogManager.getLogger("Cleanroom");
 
+    /** Identity map (arrays never override equals) from a snapshot handed out by {@link #snapshotBytes} to its chunk. */
+    private static final Map<byte[], Chunk> SNAPSHOTS = Collections.synchronizedMap(new WeakHashMap<>());
+
     private final Chunk chunk;
-    private final byte[] view;
-    private final byte[] seen = new byte[SIZE];
     private final int[] ids = new int[SIZE];
 
-    public ChunkBiomes(Chunk chunk, byte[] view) {
-        if (view.length != SIZE) {
-            throw new IllegalArgumentException("Chunk biome views need " + SIZE + " bytes, got " + view.length + ".");
-        }
+    public ChunkBiomes(Chunk chunk) {
         this.chunk = chunk;
-        this.view = view;
         Arrays.fill(ids, UNSET);
-        System.arraycopy(view, 0, seen, 0, SIZE);
-        for (int i = 0; i < SIZE; i++) {
-            if (view[i] != (byte) 0xFF) {
-                ids[i] = view[i] & 0xFF;
-            }
-        }
     }
 
     public int get(int index) {
-        sync();
         return ids[index];
     }
 
@@ -64,9 +56,7 @@ public final class ChunkBiomes {
     }
 
     public void set(int index, int id) {
-        sync();
         ids[index] = id;
-        view[index] = seen[index] = legacyByte(id);
     }
 
     public void set(int x, int z, int id) {
@@ -74,7 +64,6 @@ public final class ChunkBiomes {
     }
 
     public int[] copy() {
-        sync();
         return ids.clone();
     }
 
@@ -83,9 +72,6 @@ public final class ChunkBiomes {
             throw new IllegalArgumentException("Chunk biomes need " + SIZE + " ids, got " + newIds.length + ".");
         }
         System.arraycopy(newIds, 0, ids, 0, SIZE);
-        for (int i = 0; i < SIZE; i++) {
-            view[i] = seen[i] = legacyByte(ids[i]);
-        }
     }
 
     /** Old-format bytes, which are full ids (worlds from before the format held at most 256 biomes). */
@@ -100,6 +86,16 @@ public final class ChunkBiomes {
         setAll(newIds);
     }
 
+    /** {@code Chunk.setBiomeArray(byte[])}: resolve each byte column by column (0xFF = unset); lossy above 255. */
+    public void setAllFromBytes(byte[] bytes) {
+        if (bytes.length != SIZE) {
+            throw new IllegalArgumentException("Chunk biomes need " + SIZE + " bytes, got " + bytes.length + ".");
+        }
+        for (int i = 0; i < SIZE; i++) {
+            ids[i] = bytes[i] == (byte) 0xFF ? UNSET : resolve(bytes[i] & 0xFF, i);
+        }
+    }
+
     /** JEID/REID save one full biome id per column. */
     public void setIds(int[] newIds) {
         if (newIds.length != SIZE) {
@@ -108,25 +104,60 @@ public final class ChunkBiomes {
         setAll(newIds);
     }
 
-    private static byte legacyByte(int id) {
-        return id == UNSET ? (byte) 0xFF : (byte) id;
+    /**
+     * A new byte[256] holding each column's id low byte (0xFF for {@link #UNSET}), registered to this
+     * chunk so {@link #storeByte} can find the owner of writes to it. Called by {@code Chunk.getBiomeArray()}.
+     */
+    public static byte[] snapshotBytes(Chunk chunk) {
+        byte[] snapshot = new byte[SIZE];
+        ChunkBiomes biomes = chunk.getBiomeIds();
+        for (int i = 0; i < SIZE; i++) {
+            snapshot[i] = (byte) biomes.ids[i];
+        }
+        SNAPSHOTS.put(snapshot, chunk);
+        return snapshot;
     }
 
-    private void sync() {
-        int first = Arrays.mismatch(view, seen);
-        if (first >= 0) {
-            syncFrom(first);
+    /**
+     * A transformed mod's {@code array[index] = value} on a {@link #snapshotBytes} array. The owning
+     * chunk gets the write via {@link #storeFromMod}; the array itself also takes the low byte so a
+     * later read through the same snapshot sees the mod's own write. An array the map does not know
+     * (a copy the mod made) falls back to a plain byte store.
+     */
+    public static void storeByte(byte[] array, int index, int value) {
+        array[index] = (byte) value;
+        Chunk owner = SNAPSHOTS.get(array);
+        if (owner != null) {
+            owner.getBiomeIds().storeFromMod(index, value);
         }
     }
 
-    private synchronized void syncFrom(int first) {
-        for (int i = first; i < SIZE; i++) {
-            byte b = view[i];
-            if (b != seen[i]) {
-                ids[i] = resolve(b & 0xFF, i);
-                seen[i] = b;
-            }
+    /**
+     * A transformed mod's {@code array[index]} on a {@link #snapshotBytes} array. Identical to BALOAD
+     * (sign-extended byte); it exists so the transformer routes reads through one place for logging.
+     */
+    public static int loadByte(byte[] array, int index) {
+        return array[index];
+    }
+
+    /**
+     * A mod's byte-array write, resolved to a full id. When the transformer removed the {@code I2B},
+     * {@code value} is the full id (> 255); otherwise it is a byte and {@link #resolve} picks which
+     * biome that low byte means. Bytes read back through {@link #loadByte} arrive sign-extended, so
+     * byte range is -128..255 here. A full id in 0..255 and a byte with that value are the same thing;
+     * resolve()'s first rule (unique low byte) handles it.
+     */
+    public void storeFromMod(int index, int value) {
+        if (value > 255 || value < -128) {
+            set(index, Biome.getBiome(value) != null ? value : UNSET);
+            return;
         }
+        int low = value & 0xFF;
+        if (low == 0xFF) {
+            set(index, UNSET);
+            return;
+        }
+        set(index, resolve(low, index));
     }
 
     /**
@@ -145,9 +176,6 @@ public final class ChunkBiomes {
      * </ol>
      */
     private int resolve(int lowByte, int index) {
-        if (lowByte == 0xFF) {
-            return UNSET;
-        }
         int[] candidates = GameData.getBiomeIdsWithLowByte(lowByte);
         if (candidates.length <= 1) {
             return candidates.length == 0 ? UNSET : candidates[0];
@@ -214,7 +242,6 @@ public final class ChunkBiomes {
     }
 
     public void writeNBT(NBTTagCompound chunkTag) {
-        sync();
         Int2IntOpenHashMap indexOf = new Int2IntOpenHashMap();
         indexOf.defaultReturnValue(-1);
         NBTTagList palette = new NBTTagList();

@@ -90,7 +90,23 @@ that bypass the `Biome` API touch it; the audit found generators and a few decor
 The method could not simply return `int[]`: those mods' bytecode has `BASTORE`/`BALOAD` (byte-array store/load)
 baked in and would throw. Hence the redirect.
 
-### The ASM redirect (to build; replaces the accessor)
+### The ASM redirect (built: `BiomeArrayTransformer`)
+
+**What was built differs from the sketch below in two deliberate ways.** The field is gone, but
+`getBiomeArray()` stays as a deprecated method returning a **throwaway snapshot** `byte[256]` registered to its
+chunk in a weak identity map, and the transformer rewrites only `BASTORE`/`BALOAD` on arrays that came from
+that call (`storeByte`/`loadByte`), dropping an adjacent `I2B`. Reasons: (1) keeping the slot typed `byte[]`
+means no stack-map frames or local types change, so `ClassWriter(0)` is enough and transformed classes verify
+without `COMPUTE_FRAMES` (which needs class-hierarchy lookups inside a transformer); (2) an array that escapes
+the method is a real `byte[]`, so reads through it stay correct and the only loss is the write, instead of a
+`ClassCastException` in unrelated code. `resolve()` survives as the fallback inside `storeByte` for a write
+whose `I2B` was not adjacent (the value arrives as a byte); it is no longer on `Chunk`. The accessor is matched
+by name and descriptor, not owner: javac emits the receiver's static type, so a `Chunk`-subclass-typed call
+would be missed by an owner check, and a false positive on an unrelated `getBiomeArray()[B` is harmless
+(`storeByte` falls back to a plain store for an unknown array). Verified by a javac-compiled fixture covering
+fill, read-modify-write, non-adjacent `I2B`, read-only, escaped-array and untracked-store patterns.
+
+Original sketch, kept for the reasoning:
 
 Generic: one transformer, every class, no per-mod code. REID did the same job with 49 hand-written mixins for
 31 mods.
@@ -527,10 +543,10 @@ To do:
 - [ ] Metadata as a compatibility view only: `getStateFromMeta`/`getMetaFromState` stay for mods, nothing
       internal uses `id << 4 | meta` except the legacy chunk reader.
 - [ ] `/cleanroom ids`: registry sizes and the owning mod per name range. (Optional.)
-- [ ] **Biome ASM redirect** (approved direction): remove `blockBiomeArray` / `getBiomeArray` / `setBiomeArray`;
-      transformer matching by descriptor, `BALOAD`/`BASTORE`/`arraylength` → `ChunkBiomes.get`/`set`/`256`,
-      `I2B` dropped, escape detector failing the class load with the mod named, debug log per site; remove
-      `resolve()`, `getBiomeIdsWithLowByte` and their tests; test against a pack with BoP and Traverse.
+- [x] **Biome ASM redirect**: `blockBiomeArray` removed; `getBiomeArray()` is a deprecated registered
+      snapshot; `BiomeArrayTransformer` routes tracked `BASTORE`/`BALOAD` to `storeByte`/`loadByte`, drops
+      adjacent `I2B`; `resolve()` kept as the byte fallback. Still to do: run against a pack with BoP and
+      Traverse and read the transformer's info lines.
 - [ ] `ChunkBiomes` indexed `(x, y, z)` with one layer; layer count in save and packet.
 
 Last, pending Rongmario's review (see "Missing content"):
