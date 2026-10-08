@@ -34,7 +34,9 @@ public class BlockStateIdMapTest
     {
         List<IBlockState> states = new ArrayList<>();
         for (Block block : RegistryManager.ACTIVE.getRegistry(Block.class))
+        {
             states.addAll(block.getBlockState().getValidStates());
+        }
         return states;
     }
 
@@ -56,7 +58,9 @@ public class BlockStateIdMapTest
     public void stateIdsRoundTripAndKeepTheOldEncodingWhereItFits()
     {
         for (IBlockState state : expectedOrder())
+        {
             assertSame(state, Block.getStateById(Block.getStateId(state)), String.valueOf(state));
+        }
         // Mods send the block id alone as a meta-0 state (world event 2001)
         assertEquals(Block.getIdFromBlock(Blocks.GRASS), Block.getStateId(Blocks.GRASS.getDefaultState()));
         assertSame(Blocks.WATER.getDefaultState(), Block.getStateById(Block.getIdFromBlock(Blocks.WATER)));
@@ -70,7 +74,9 @@ public class BlockStateIdMapTest
         for (IBlockState state : Block.BLOCK_STATE_IDS)
         {
             if (state instanceof BlockStateContainer.StateImplementation impl)
+            {
                 assertEquals(Block.BLOCK_STATE_IDS.get(state), impl.runtimeStateId, String.valueOf(state));
+            }
         }
     }
 

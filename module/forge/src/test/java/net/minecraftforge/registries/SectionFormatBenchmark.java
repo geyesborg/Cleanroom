@@ -68,7 +68,9 @@ public class SectionFormatBenchmark
         tag.setByteArray("Blocks", blocks);
         tag.setByteArray("Data", meta.getData());
         if (add != null)
+        {
             tag.setByteArray("Add", add.getData());
+        }
         return tag;
     }
 
@@ -100,7 +102,9 @@ public class SectionFormatBenchmark
         IBlockState[] palette = SectionBlockFormat.readChunkPalette(chunk);
         net.minecraft.nbt.NBTTagList list = chunk.getTagList("Sections", 10);
         for (int s = 0; s < list.tagCount(); s++)
+        {
             SectionBlockFormat.read(list.getCompoundTagAt(s), new BlockStateContainer(), palette);
+        }
     }
 
     private static NBTTagCompound legacyChunk(NBTTagCompound[] legacy, int first)
@@ -108,7 +112,9 @@ public class SectionFormatBenchmark
         NBTTagCompound chunk = new NBTTagCompound();
         net.minecraft.nbt.NBTTagList list = new net.minecraft.nbt.NBTTagList();
         for (int s = first; s < first + 16; s++)
+        {
             list.appendTag(legacy[s]);
+        }
         chunk.setTag("Sections", list);
         return chunk;
     }
@@ -130,28 +136,40 @@ public class SectionFormatBenchmark
         int chunks = SECTIONS / 16;
         NBTTagCompound[] legacy = new NBTTagCompound[SECTIONS];
         NBTTagCompound[] palette = new NBTTagCompound[chunks];
-        long legacyWrite = Long.MAX_VALUE, paletteWrite = Long.MAX_VALUE, legacyRead = Long.MAX_VALUE, paletteRead = Long.MAX_VALUE;
+        long legacyWrite = Long.MAX_VALUE;
+        long paletteWrite = Long.MAX_VALUE;
+        long legacyRead = Long.MAX_VALUE;
+        long paletteRead = Long.MAX_VALUE;
         for (int round = 0; round < ROUNDS; round++)
         {
             long t0 = System.nanoTime();
             for (int s = 0; s < SECTIONS; s++)
+            {
                 legacy[s] = writeLegacy(sections[s]);
+            }
             long t1 = System.nanoTime();
             for (int c = 0; c < chunks; c++)
+            {
                 palette[c] = writePaletteChunk(sections, c * 16);
+            }
             long t2 = System.nanoTime();
             for (int s = 0; s < SECTIONS; s++)
+            {
                 readLegacy(legacy[s], new BlockStateContainer());
+            }
             long t3 = System.nanoTime();
             for (int c = 0; c < chunks; c++)
+            {
                 readPaletteChunk(palette[c]);
+            }
             long t4 = System.nanoTime();
             legacyWrite = Math.min(legacyWrite, t1 - t0);
             paletteWrite = Math.min(paletteWrite, t2 - t1);
             legacyRead = Math.min(legacyRead, t3 - t2);
             paletteRead = Math.min(paletteRead, t4 - t3);
         }
-        long legacyBytes = 0, paletteBytes = 0;
+        long legacyBytes = 0;
+        long paletteBytes = 0;
         for (int c = 0; c < chunks; c++)
         {
             legacyBytes += compressedSize(legacyChunk(legacy, c * 16));
