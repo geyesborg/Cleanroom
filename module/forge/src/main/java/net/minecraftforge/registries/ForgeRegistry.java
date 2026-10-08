@@ -19,10 +19,14 @@
 
 package net.minecraftforge.registries;
 
+import java.lang.reflect.Array;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -86,6 +90,11 @@ public class ForgeRegistry<V extends IForgeRegistryEntry<V>> implements IForgeRe
     private V defaultValue = null;
     boolean isFrozen = false;
 
+    // Derived numbering, built by renumber() at freeze time: dense ids 0..N-1, vanilla entries on their own
+    // numbers, the rest sorted by name. Null while unfrozen.
+    private V[] byId;
+    private IdentityHashMap<V, Integer> idOf;
+
     ForgeRegistry(Class<V> superType, ResourceLocation defaultKey, int min, int max, @Nullable CreateCallback<V> create, @Nullable AddCallback<V> add, @Nullable ClearCallback<V> clear, @Nullable ValidateCallback<V> validate, RegistryManager stage, boolean allowOverrides, boolean isModifiable, @Nullable DummyFactory<V> dummyFactory, @Nullable MissingFactory<V> missing)
     {
         this.stage = stage;
@@ -115,6 +124,26 @@ public class ForgeRegistry<V extends IForgeRegistryEntry<V>> implements IForgeRe
 
     @Override
     public Iterator<V> iterator() {
+        if (this.byId != null)
+        {
+            final V[] byId = this.byId;
+            return new Iterator<V>()
+            {
+                int cur = 0;
+
+                @Override
+                public boolean hasNext()
+                {
+                    return cur < byId.length;
+                }
+
+                @Override
+                public V next()
+                {
+                    return byId[cur++];
+                }
+            };
+        }
         return new Iterator<V>()
         {
             int cur = -1;
@@ -237,6 +266,13 @@ public class ForgeRegistry<V extends IForgeRegistryEntry<V>> implements IForgeRe
 
     public int getID(V value)
     {
+        if (this.idOf != null)
+        {
+            Integer ret = this.idOf.get(value);
+            if (ret == null && this.defaultValue != null)
+                ret = this.idOf.get(this.defaultValue);
+            return ret == null ? -1 : ret.intValue();
+        }
         Integer ret = this.ids.inverse().get(value);
         if (ret == null && this.defaultValue != null)
             ret = this.ids.inverse().get(this.defaultValue);
@@ -249,6 +285,11 @@ public class ForgeRegistry<V extends IForgeRegistryEntry<V>> implements IForgeRe
     }
     private int getIDRaw(V value)
     {
+        if (this.idOf != null)
+        {
+            Integer ret = this.idOf.get(value);
+            return ret == null ? -1 : ret.intValue();
+        }
         Integer ret = this.ids.inverse().get(value);
         return ret == null ? -1 : ret.intValue();
     }
@@ -259,7 +300,7 @@ public class ForgeRegistry<V extends IForgeRegistryEntry<V>> implements IForgeRe
 
     public V getValue(int id)
     {
-        V ret = this.ids.get(id);
+        V ret = this.byId != null ? (id >= 0 && id < this.byId.length ? this.byId[id] : null) : this.ids.get(id);
         return ret == null ? this.defaultValue : ret;
     }
 
@@ -373,6 +414,8 @@ public class ForgeRegistry<V extends IForgeRegistryEntry<V>> implements IForgeRe
     @Deprecated //Public for ByteByfUtils only!
     public V getRaw(int id)
     {
+        if (this.byId != null)
+            return id >= 0 && id < this.byId.length ? this.byId[id] : null;
         return this.ids.get(id);
     }
 
@@ -490,6 +533,8 @@ public class ForgeRegistry<V extends IForgeRegistryEntry<V>> implements IForgeRe
             throw new IllegalArgumentException("Attempted to copy to incompatible registry: " + name + " " + from.superType + " -> " + this.superType);
 
         this.isFrozen = false;
+        this.byId = null;
+        this.idOf = null;
 
         if (this.clear != null)
             this.clear.onClear(this, stage);
@@ -575,6 +620,8 @@ public class ForgeRegistry<V extends IForgeRegistryEntry<V>> implements IForgeRe
         this.ids.clear();
         this.names.clear();
         this.availabilityMap.clear(0, this.availabilityMap.length());
+        this.byId = null;
+        this.idOf = null;
     }
 
     @Override
@@ -619,11 +666,113 @@ public class ForgeRegistry<V extends IForgeRegistryEntry<V>> implements IForgeRe
     public void freeze()
     {
         this.isFrozen = true;
+        renumber(RegistryManager.VANILLA);
     }
 
     public void unfreeze()
     {
         this.isFrozen = false;
+        this.byId = null;
+        this.idOf = null;
+    }
+
+    /**
+     * Assigns this registry's session numbers, replacing the ids chosen at registration time. Vanilla entries
+     * (the names in the {@link RegistryManager#VANILLA} copy) keep the number vanilla gave them; every other
+     * name fills the remaining ids in {@link ResourceLocation#toString()} order. The result is dense 0..N-1
+     * and is verified before it is installed.
+     */
+    void renumber(RegistryManager vanilla)
+    {
+        IdentityHashMap<V, Integer> idOf = derivedIds(vanilla);
+        int size = this.names.size();
+        @SuppressWarnings("unchecked")
+        V[] byId = (V[])Array.newInstance(this.superType, size);
+        for (Map.Entry<V, Integer> entry : idOf.entrySet())
+        {
+            byId[entry.getValue()] = entry.getKey();
+        }
+        this.byId = byId;
+        this.idOf = idOf;
+
+        ResourceLocation regName = this.stage.getName(this);
+        for (int i = 0; i < size; i++)
+        {
+            if (byId[i] == null)
+                throw new IllegalStateException(String.format("Registry %s: derived numbering left id %d empty.", regName, i));
+        }
+        for (Entry<ResourceLocation, V> entry : this.names.entrySet())
+        {
+            V value = entry.getValue();
+            int id = getID(value);
+            if (id < 0 || id >= size || getValue(id) != value)
+                throw new IllegalStateException(String.format("Registry %s: derived numbering of %s is inconsistent (id %d).", regName, entry.getKey(), id));
+            if (getID(entry.getKey()) != id)
+                throw new IllegalStateException(String.format("Registry %s: derived numbering of name %s does not match its value's id %d.", regName, entry.getKey(), id));
+        }
+    }
+
+    /**
+     * The value -> id assignment {@link #renumber(RegistryManager)} installs, computed from the current
+     * contents without changing the registry. Used for the item registry's own ordering too, which reads the
+     * block registry's numbers through this.
+     */
+    private IdentityHashMap<V, Integer> derivedIds(RegistryManager vanilla)
+    {
+        int size = this.names.size();
+        IdentityHashMap<V, Integer> ret = new IdentityHashMap<V, Integer>(size * 2);
+        BitSet used = new BitSet(size);
+        ResourceLocation regName = this.stage.getName(this);
+        ForgeRegistry<V> vanillaReg = vanilla != null && regName != null ? vanilla.getRegistry(regName) : null;
+
+        List<ResourceLocation> vanillaNames = new ArrayList<ResourceLocation>();
+        List<ResourceLocation> moddedNames = new ArrayList<ResourceLocation>();
+        for (ResourceLocation name : this.names.keySet())
+        {
+            if (vanillaReg != null && vanillaReg.names.containsKey(name))
+                vanillaNames.add(name);
+            else
+                moddedNames.add(name);
+        }
+        vanillaNames.sort(Comparator.comparingInt(name -> vanillaReg.getIDRaw(name)));
+        moddedNames.sort(Comparator.comparing(ResourceLocation::toString));
+
+        List<V> unclaimed = new ArrayList<V>();
+        for (ResourceLocation name : vanillaNames)
+        {
+            V value = this.names.get(name);
+            int id = vanillaReg.getIDRaw(name);
+            if (id >= 0 && id < size && !used.get(id) && !ret.containsKey(value))
+            {
+                used.set(id);
+                ret.put(value, id);
+            }
+            else if (!ret.containsKey(value))
+            {
+                unclaimed.add(value);
+            }
+        }
+        for (ResourceLocation name : moddedNames)
+        {
+            V value = this.names.get(name);
+            if (!ret.containsKey(value))
+            {
+                unclaimed.add(value);
+            }
+        }
+        int next = 0;
+        for (V value : unclaimed)
+        {
+            while (next < size && used.get(next))
+            {
+                next++;
+            }
+            if (next >= size)
+                throw new IllegalStateException(String.format("Registry %s: derived numbering ran out of ids for %s.", regName, getKey(value)));
+            used.set(next);
+            ret.put(value, next);
+        }
+        return ret;
     }
 
     RegistryEvent.Register<V> getRegisterEvent(ResourceLocation name)
@@ -769,7 +918,7 @@ public class ForgeRegistry<V extends IForgeRegistryEntry<V>> implements IForgeRe
     public Snapshot makeSnapshot()
     {
         Snapshot ret = new Snapshot();
-        this.ids.forEach((id, value) -> ret.ids.put(getKey(value), id));
+        this.names.forEach((key, value) -> ret.ids.put(key, getID(value)));
         ret.aliases.putAll(this.aliases);
         ret.blocked.addAll(this.blocked);
         ret.dummied.addAll(this.dummies);

@@ -1,0 +1,189 @@
+package net.minecraftforge.registries;
+
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
+import net.minecraft.block.Block;
+import net.minecraft.block.material.Material;
+import net.minecraft.init.Blocks;
+import net.minecraft.init.Items;
+import net.minecraft.init.MobEffects;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemBlock;
+import net.minecraft.potion.Potion;
+import net.minecraft.util.ResourceLocation;
+import net.minecraft.world.biome.Biome;
+import net.minecraftforge.fml.common.registry.ForgeTestRunner;
+import net.minecraftforge.fml.common.registry.MinecraftTestHarness;
+
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * Derived registry numbering ({@link ForgeRegistry#renumber}): at freeze time every registry's ids become
+ * dense 0..N-1, with vanilla entries on the numbers the vanilla snapshot gave them and the rest filled in by
+ * name order.
+ */
+@ForgeTestRunner.Isolated
+public class DerivedNumberingTest
+{
+    @BeforeAll
+    public static void setup()
+    {
+        MinecraftTestHarness.bootstrap();
+        GameData.freezeData();
+    }
+
+    @Test
+    public void vanillaKeepsItsNumbers()
+    {
+        assertEquals(0, Block.getIdFromBlock(Blocks.AIR));
+        assertEquals(1, Block.getIdFromBlock(Blocks.STONE));
+        assertEquals(2, Block.getIdFromBlock(Blocks.GRASS));
+        assertEquals(3, Block.getIdFromBlock(Blocks.DIRT));
+        assertEquals(1, Potion.getIdFromPotion(MobEffects.SPEED));
+
+        ForgeRegistry<Item> vanillaItems = RegistryManager.VANILLA.getRegistry(GameData.ITEMS);
+        assertEquals(256, vanillaItems.getID(Items.IRON_SHOVEL), "vanilla item id in the VANILLA copy");
+        assertEquals(256, Item.getIdFromItem(Items.IRON_SHOVEL));
+    }
+
+    @Test
+    public void moddedEntriesAreSortedByNameAfterVanilla()
+    {
+        ForgeRegistry<Block> blocks = RegistryManager.ACTIVE.getRegistry(GameData.BLOCKS);
+        blocks.unfreeze();
+        Block zzz = new Block(Material.ROCK).setRegistryName("wideids_test", "zzz_block");
+        Block aaa = new Block(Material.ROCK).setRegistryName("wideids_test", "aaa_block");
+        blocks.register(zzz);
+        blocks.register(aaa);
+        blocks.freeze();
+
+        int zzzId = Block.getIdFromBlock(zzz);
+        int aaaId = Block.getIdFromBlock(aaa);
+        assertTrue(aaaId < zzzId, "name order decides, not registration order");
+
+        // vanilla ids are untouched, and the modded pair takes the first ids vanilla left free
+        ForgeRegistry<Block> vanillaBlocks = RegistryManager.VANILLA.getRegistry(GameData.BLOCKS);
+        Set<Integer> vanillaIds = new HashSet<>();
+        for (Block b : vanillaBlocks)
+        {
+            vanillaIds.add(vanillaBlocks.getID(b));
+        }
+        assertTrue(!vanillaIds.contains(aaaId) && !vanillaIds.contains(zzzId), "modded blocks must not displace vanilla ids");
+        int free = 0;
+        while (vanillaIds.contains(free))
+        {
+            free++;
+        }
+        assertEquals(free, aaaId);
+        assertEquals(aaaId + 1, zzzId);
+        assertSame(Blocks.AIR, blocks.getValue(0));
+        assertSame(aaa, blocks.getValue(aaaId));
+        assertSame(zzz, blocks.getValue(zzzId));
+    }
+
+    @Test
+    public void numberingIsIndependentOfRegistrationOrder()
+    {
+        ResourceLocation name = new ResourceLocation("wideids_test", "standalone_blocks");
+        RegistryManager first = new RegistryManager("TEST_A");
+        RegistryManager second = new RegistryManager("TEST_B");
+        ForgeRegistry<Block> regA = first.createRegistry(name, Block.class, null, 0, Integer.MAX_VALUE >> 5, null, null, null, null, false, false, false, null, null);
+        ForgeRegistry<Block> regB = second.createRegistry(name, Block.class, null, 0, Integer.MAX_VALUE >> 5, null, null, null, null, false, false, false, null, null);
+
+        ResourceLocation a = new ResourceLocation("wideids_test", "order_a");
+        ResourceLocation b = new ResourceLocation("wideids_test", "order_b");
+        ResourceLocation c = new ResourceLocation("wideids_test", "order_c");
+        regA.register(blockNamed(a));
+        regA.register(blockNamed(b));
+        regA.register(blockNamed(c));
+        regB.register(blockNamed(c));
+        regB.register(blockNamed(a));
+        regB.register(blockNamed(b));
+        regA.freeze();
+        regB.freeze();
+
+        for (ResourceLocation key : new ResourceLocation[] {a, b, c})
+        {
+            assertEquals(regA.getID(key), regB.getID(key), key.toString());
+        }
+        assertEquals(0, regA.getID(a));
+        assertEquals(1, regA.getID(b));
+        assertEquals(2, regA.getID(c));
+    }
+
+    private static Block blockNamed(ResourceLocation name)
+    {
+        return new Block(Material.ROCK).setRegistryName(name);
+    }
+
+    @Test
+    public void vanillaItemIdsSurviveManyModdedBlocks()
+    {
+        ForgeRegistry<Block> blocks = RegistryManager.ACTIVE.getRegistry(GameData.BLOCKS);
+        ForgeRegistry<Item> items = RegistryManager.ACTIVE.getRegistry(GameData.ITEMS);
+        blocks.unfreeze();
+        items.unfreeze();
+        // Vanilla blocks leave holes at 253/254: with four modded blocks at least two land past 255, the ids
+        // vanilla items start at. Modded entries must not claim them.
+        List<Block> modded = new ArrayList<>();
+        for (int i = 0; i < 4; i++)
+        {
+            ResourceLocation name = new ResourceLocation("wideids_test", "many_" + i);
+            Block block = new Block(Material.ROCK).setRegistryName(name);
+            Item item = new ItemBlock(block).setRegistryName(name);
+            blocks.register(block);
+            items.register(item);
+            modded.add(block);
+        }
+        blocks.freeze();
+        items.freeze();
+
+        assertTrue(modded.stream().anyMatch(b -> Block.getIdFromBlock(b) >= 256), "test needs a modded block past the vanilla item ids");
+        assertEquals(256, Item.getIdFromItem(Items.IRON_SHOVEL));
+        assertEquals(1, Item.getIdFromItem(Item.getItemFromBlock(Blocks.STONE)));
+        assertDense(items);
+        for (Block block : modded)
+        {
+            Item item = Item.getItemFromBlock(block);
+            assertNotNull(item);
+            assertTrue(Item.getIdFromItem(item) >= 0);
+        }
+    }
+
+    @Test
+    public void idsAreDenseAfterFreeze()
+    {
+        ForgeRegistry<Block> blocks = RegistryManager.ACTIVE.getRegistry(GameData.BLOCKS);
+        ForgeRegistry<Item> items = RegistryManager.ACTIVE.getRegistry(GameData.ITEMS);
+        ForgeRegistry<Biome> biomes = RegistryManager.ACTIVE.getRegistry(GameData.BIOMES);
+        assertDense(blocks);
+        assertDense(items);
+        assertDense(biomes);
+    }
+
+    private static <T extends IForgeRegistryEntry<T>> void assertDense(ForgeRegistry<T> reg)
+    {
+        List<T> entries = new ArrayList<>();
+        for (T value : reg)
+        {
+            entries.add(value);
+        }
+        assertEquals(entries.size(), reg.getKeys().size());
+        for (int i = 0; i < entries.size(); i++)
+        {
+            assertNotNull(reg.getRaw(i), "empty id " + i);
+            assertSame(entries.get(i), reg.getRaw(i), "iterator order is id order");
+            assertEquals(i, reg.getID(entries.get(i)));
+        }
+        assertEquals(null, reg.getRaw(entries.size()));
+    }
+}

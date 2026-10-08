@@ -672,7 +672,7 @@ public class GameData
             ForgeRegistry<T> toRegistry = to.getRegistry(registryName, from);
             toRegistry.sync(registryName, fromRegistry);
             if (freeze)
-                toRegistry.isFrozen = true;
+                toRegistry.freeze(); // freeze() derives the numbering; the copied ids only seed the names
         }
     }
 

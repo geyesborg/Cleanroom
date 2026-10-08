@@ -35,7 +35,6 @@ import org.junit.jupiter.api.Test;
 import com.google.common.collect.Maps;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 import java.util.Map;
 
@@ -115,35 +114,44 @@ public class FreezingTests
         active.register(r4);
         active.register(r3);
 
-        int r3id = active.getID(r3);
         GameData.freezeData();
 
-        //Frozen data should be the same, as there are no replacement
+        //Numbering is derived at freeze: dense, sorted by name, registration order irrelevant
         ForgeRegistry<RTest> frozen = (ForgeRegistry<RTest>)RegistryManager.ACTIVE.getRegistry(RTest.class);
+        assertEquals(0, active.getID(r3), "test3 is the first name");
+        assertEquals(1, active.getID(r4));
+        assertEquals(2, active.getID(r5));
+        assertEquals(3, active.getID(r6));
         assertEquals(r3, frozen.getValue(name), "Frozen object not the same");
         assertEquals(r3, active.getValue(name), "Active object not the same");
 
-        // r3 is in the snapshot, so the ID SHOULD change to whats in the snapshot.
+        // The snapshot holds test1..4; only test3 and test4 exist locally, so the registry reloads
+        // as just those two and renumbers dense by name
         GameData.injectSnapshot(ss, false, true); //Unlike the old system we die on missing mappings for custom registries. So we need to tell it to continue loading as if we're local
-        assertNotEquals(r3id, active.getID(r3), "IDs match");
+        assertEquals(0, active.getID(r3));
+        assertEquals(1, active.getID(r4));
+        assertEquals(-1, active.getID(r5), "not in the snapshot, so not loaded");
         assertEquals(r3, frozen.getValue(name), "Frozen object not the same");
         assertEquals(r3, active.getValue(name), "Active object not the same");
 
-        // Frozen has the original ID
+        // Reverting brings back the frozen set and its derived numbering
         GameData.revertToFrozen();
-        assertEquals(r3id, active.getID(r3), "IDs don't match");
+        assertEquals(0, active.getID(r3));
+        assertEquals(3, active.getID(r6));
         assertEquals(r3, frozen.getValue(name), "Frozen object not the same");
         assertEquals(r3, active.getValue(name), "Active object not the same");
 
-        // Make sure we have snapshot ID again
+        // Frozen entries are merged into the snapshot data; all six names renumber to name order
         GameData.injectSnapshot(ss, true, true);
-        assertNotEquals(r3id, active.getID(r3), "IDs match");
+        assertEquals(0, active.getID(r3));
+        assertEquals(3, active.getID(r6));
         assertEquals(r3, frozen.getValue(name), "Frozen object not the same");
         assertEquals(r3, active.getValue(name), "Active object not the same");
 
-        //And back to the frozen ID
+        //And back to the frozen set
         GameData.revertToFrozen();
-        assertEquals(r3id, active.getID(r3), "IDs don't match");
+        assertEquals(0, active.getID(r3));
+        assertEquals(3, active.getID(r6));
         assertEquals(r3, frozen.getValue(name), "Frozen object not the same");
         assertEquals(r3, active.getValue(name), "Active object not the same");
     }

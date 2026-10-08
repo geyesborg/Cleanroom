@@ -30,11 +30,16 @@ Numbering, per registry:
    entries land together without any per-mod range. Per-mod ranges are what Forge's config IDs and `BitSet` did
    and are where conflicts and caps came from; we don't have them.
 
-**Items are the one exception to "sorted".** Forge gives an `ItemBlock` the same number as its block (and
-starts other items at 4096 to leave room); a few vanilla paths rely on `Item.getIdFromItem(itemBlock) ==
-Block.getIdFromBlock(block)`. So the item registry is ordered: **block-items in block order**, then vanilla
-non-block items in vanilla order, then the rest sorted by name. Items stay aligned with their blocks for free
-and `MIN_ITEM_ID` goes away.
+**Vanilla keeps its exact numbers, not just its order.** Vanilla ids have holes (blocks skip 253 and 254;
+potions start at 1), so "vanilla first" means each vanilla name *claims the id vanilla gave it*, and modded
+names fill every remaining id from 0 up, in name order. That is what keeps the result dense: a modded block
+may sit at 253. Vanilla `ItemBlock`s share their block's id because vanilla registered them that way; that
+equality is preserved as part of "vanilla keeps its numbers".
+
+**There is no block-item rule for modded content.** Forge never gave a modded `ItemBlock` its block's id
+(modded items start at `MIN_ITEM_ID` = 4096), so nothing depends on it. Trying to enforce it would make a
+modded block at id 256 evict vanilla's `iron_shovel` from item id 256. Items are sorted by name like
+everything else, and `MIN_ITEM_ID` goes away.
 
 Types are **not** merged: a block and an item can both be 5. They are never looked up in the same table, and
 merging would break every `Block.getBlockById`.
@@ -467,8 +472,10 @@ Done, on the branch (tests pass, full build passes):
 
 To do:
 
-- [ ] Registry as ordered name list: vanilla order then sorted; items as block-items in block order first;
-      remove `BitSet`, `min`/`max`, `MIN_ITEM_ID`, snapshots, dummies.
+- [x] Numbering derived at `freeze()`: vanilla names claim vanilla's ids, the rest fill free ids by name;
+      `getID`/`getValue`/iterator read dense arrays once frozen (`ForgeRegistry.renumber`). Registration-time
+      ids still come from the `BitSet` until freeze.
+- [ ] Remove `BitSet`, `min`/`max`, `MIN_ITEM_ID`, snapshots, dummies now that they only seed names.
 - [ ] Immutable array after freeze; remove public `unfreeze()`.
 - [ ] One manager; drop `FROZEN`/`STAGING` and freeze/revert copying.
 - [ ] Derived indices (block states, block→item, entity class→entry) as typed classes rebuilt on freeze.
