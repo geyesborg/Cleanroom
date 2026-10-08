@@ -96,8 +96,8 @@ public class DerivedNumberingTest
         ResourceLocation name = new ResourceLocation("wideids_test", "standalone_blocks");
         RegistryManager first = new RegistryManager("TEST_A");
         RegistryManager second = new RegistryManager("TEST_B");
-        ForgeRegistry<Block> regA = first.createRegistry(name, Block.class, null, 0, Integer.MAX_VALUE >> 5, null, null, null, null, false, false, false, null, null);
-        ForgeRegistry<Block> regB = second.createRegistry(name, Block.class, null, 0, Integer.MAX_VALUE >> 5, null, null, null, null, false, false, false, null, null);
+        ForgeRegistry<Block> regA = first.createRegistry(name, Block.class, null, null, null, null, null, false, false, false, null, null);
+        ForgeRegistry<Block> regB = second.createRegistry(name, Block.class, null, null, null, null, null, false, false, false, null, null);
 
         ResourceLocation a = new ResourceLocation("wideids_test", "order_a");
         ResourceLocation b = new ResourceLocation("wideids_test", "order_b");
@@ -118,6 +118,53 @@ public class DerivedNumberingTest
         assertEquals(0, regA.getID(a));
         assertEquals(1, regA.getID(b));
         assertEquals(2, regA.getID(c));
+    }
+
+    @Test
+    public void explicitSeedIdsAreHonouredBeforeFreeze()
+    {
+        ResourceLocation name = new ResourceLocation("wideids_test", "seeded_blocks");
+        RegistryManager manager = new RegistryManager("TEST_SEED");
+        ForgeRegistry<Block> reg = manager.createRegistry(name, Block.class, null, null, null, null, null, false, false, false, null, null);
+
+        Block blockA = blockNamed(new ResourceLocation("wideids_test", "seed_a"));
+        Block blockB = blockNamed(new ResourceLocation("wideids_test", "seed_b"));
+        Block blockC = blockNamed(new ResourceLocation("wideids_test", "seed_c"));
+
+        assertEquals(7, reg.add(7, blockA));
+        assertEquals(7, reg.getID(blockA));
+        reg.register(blockB);
+        assertEquals(0, reg.getID(blockB));
+        int blockCSeed = reg.add(7, blockC);
+        assertTrue(blockCSeed >= 0 && blockCSeed != 7, "taken seed must not be reused");
+        assertEquals(blockCSeed, reg.getID(blockC));
+
+        reg.freeze();
+        assertEquals(0, reg.getID(blockA));
+        assertEquals(1, reg.getID(blockB));
+        assertEquals(2, reg.getID(blockC));
+        assertSame(blockA, reg.getValue(0));
+        assertSame(blockC, reg.getValue(2));
+    }
+
+    @Test
+    public void thereIsNoIdRange()
+    {
+        int count = 70000;
+        ResourceLocation name = new ResourceLocation("wideids_test", "ranged_blocks");
+        RegistryManager manager = new RegistryManager("TEST_RANGE");
+        ForgeRegistry<Block> reg = manager.createRegistry(name, Block.class, null, null, null, null, null, false, false, false, null, null);
+
+        Block last = null;
+        for (int i = 0; i < count; i++)
+        {
+            last = blockNamed(new ResourceLocation("wideids_test", String.format("range_%05d", i)));
+            reg.register(last);
+        }
+        reg.freeze();
+
+        assertEquals(count - 1, reg.getID(last));
+        assertSame(last, reg.getValue(count - 1));
     }
 
     private static Block blockNamed(ResourceLocation name)

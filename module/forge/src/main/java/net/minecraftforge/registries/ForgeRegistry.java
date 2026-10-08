@@ -20,7 +20,6 @@
 package net.minecraftforge.registries;
 
 import java.lang.reflect.Array;
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collection;
@@ -75,17 +74,15 @@ public class ForgeRegistry<V extends IForgeRegistryEntry<V>> implements IForgeRe
     private final ClearCallback<V> clear;
     private final ValidateCallback<V> validate;
     private final MissingFactory<V> missing;
-    private final BitSet availabilityMap;
     private final Set<ResourceLocation> dummies = Sets.newHashSet();
     private final Set<Integer> blocked = Sets.newHashSet();
     private final Multimap<ResourceLocation, V> overrides = ArrayListMultimap.create();
     private final BiMap<OverrideOwner, V> owners = HashBiMap.create();
     private final DummyFactory<V> dummyFactory;
     private final boolean isDelegated;
-    private final int min;
-    private final int max;
     private final boolean allowOverrides;
     private final boolean isModifiable;
+    private int nextSeed = 0;
 
     private V defaultValue = null;
     boolean isFrozen = false;
@@ -95,14 +92,11 @@ public class ForgeRegistry<V extends IForgeRegistryEntry<V>> implements IForgeRe
     private V[] byId;
     private IdentityHashMap<V, Integer> idOf;
 
-    ForgeRegistry(Class<V> superType, ResourceLocation defaultKey, int min, int max, @Nullable CreateCallback<V> create, @Nullable AddCallback<V> add, @Nullable ClearCallback<V> clear, @Nullable ValidateCallback<V> validate, RegistryManager stage, boolean allowOverrides, boolean isModifiable, @Nullable DummyFactory<V> dummyFactory, @Nullable MissingFactory<V> missing)
+    ForgeRegistry(Class<V> superType, ResourceLocation defaultKey, @Nullable CreateCallback<V> create, @Nullable AddCallback<V> add, @Nullable ClearCallback<V> clear, @Nullable ValidateCallback<V> validate, RegistryManager stage, boolean allowOverrides, boolean isModifiable, @Nullable DummyFactory<V> dummyFactory, @Nullable MissingFactory<V> missing)
     {
         this.stage = stage;
         this.superType = superType;
         this.defaultKey = defaultKey;
-        this.min = min;
-        this.max = max;
-        this.availabilityMap = new BitSet(Math.min(max + 1, 0x0FFF));
         this.create = create;
         this.add = add;
         this.clear = clear;
@@ -144,27 +138,22 @@ public class ForgeRegistry<V extends IForgeRegistryEntry<V>> implements IForgeRe
                 }
             };
         }
+        final List<Integer> order = new ArrayList<Integer>(this.ids.keySet());
+        Collections.sort(order);
         return new Iterator<V>()
         {
-            int cur = -1;
-            V next = null;
-            { next(); }
+            int cur = 0;
 
             @Override
             public boolean hasNext()
             {
-                return next != null;
+                return cur < order.size();
             }
 
             @Override
             public V next()
             {
-                V ret = next;
-                do {
-                    cur = availabilityMap.nextSetBit(cur + 1);
-                    next = ids.get(cur);
-                } while (next == null && cur != -1); // nextSetBit returns -1 when none is found
-                return ret;
+                return ids.get(order.get(cur++));
             }
             //TODO add remove support?
         };
@@ -312,7 +301,7 @@ public class ForgeRegistry<V extends IForgeRegistryEntry<V>> implements IForgeRe
 
     ForgeRegistry<V> copy(RegistryManager stage)
     {
-        return new ForgeRegistry<V>(superType, defaultKey, min, max, create, add, clear, validate, stage, allowOverrides, isModifiable, dummyFactory, missing);
+        return new ForgeRegistry<V>(superType, defaultKey, create, add, clear, validate, stage, allowOverrides, isModifiable, dummyFactory, missing);
     }
 
     int add(int id, V value)
@@ -329,11 +318,14 @@ public class ForgeRegistry<V extends IForgeRegistryEntry<V>> implements IForgeRe
         Preconditions.checkNotNull(value, "Can't add null-object to the registry, name %s.", key);
 
         int idToUse = id;
-        if (idToUse < 0 || availabilityMap.get(idToUse))
-            idToUse = availabilityMap.nextClearBit(min);
-
-        if (idToUse > max)
-            throw new RuntimeException(String.format("Invalid id %d - maximum id range exceeded.", idToUse));
+        if (idToUse < 0 || this.ids.containsKey(idToUse) || this.blocked.contains(idToUse))
+        {
+            while (this.ids.containsKey(this.nextSeed) || this.blocked.contains(this.nextSeed))
+            {
+                nextSeed++;
+            }
+            idToUse = nextSeed;
+        }
 
         V oldEntry = getRaw(key);
         if (oldEntry == value) // already registered, return prev registration's id
@@ -371,7 +363,6 @@ public class ForgeRegistry<V extends IForgeRegistryEntry<V>> implements IForgeRe
 
         this.names.put(key, value);
         this.ids.put(idToUse, value);
-        this.availabilityMap.set(idToUse);
         this.owners.put(new OverrideOwner(owner == null ? key.getNamespace() : owner, key), value);
 
         if (isDelegated)
@@ -475,17 +466,6 @@ public class ForgeRegistry<V extends IForgeRegistryEntry<V>> implements IForgeRe
 
     void validateContent(ResourceLocation registryName)
     {
-        try
-        {
-            Method method = BitSet.class.getDeclaredMethod("trimToSize");
-            method.setAccessible(true);
-            method.invoke(this.availabilityMap);
-        }
-        catch (Exception e)
-        {
-            //We don't care... Just a micro-optimization
-        }
-
         for (V obj : this)
         {
             int id = getID(obj);
@@ -494,10 +474,6 @@ public class ForgeRegistry<V extends IForgeRegistryEntry<V>> implements IForgeRe
             // name lookup failed -> obj is not in the obj<->name map
             if (name == null)
                 throw new IllegalStateException(String.format("Registry entry for %s %s, id %d, doesn't yield a name.", registryName, obj, id));
-
-            // id is too high
-            if (id > max)
-                throw new IllegalStateException(String.format("Registry entry for %s %s, name %s uses the too large id %d.", registryName, obj, name, id));
 
             // id -> obj lookup is inconsistent
             if (getValue(id) != obj)
@@ -541,20 +517,16 @@ public class ForgeRegistry<V extends IForgeRegistryEntry<V>> implements IForgeRe
 
         /* -- Should never need to be copied
         this.defaultKey = from.defaultKey;
-        this.max = from.max;
-        this.min = from.min;
         */
         this.aliases.clear();
         from.aliases.forEach(this::addAlias);
 
         this.ids.clear();
         this.names.clear();
-        this.availabilityMap.clear(0, this.availabilityMap.length());
+        this.nextSeed = 0;
         this.defaultValue = null;
         this.overrides.clear();
         this.owners.clear();
-
-        boolean errored = false;
 
         for (Entry<ResourceLocation, V> entry : from.names.entrySet())
         {
@@ -562,12 +534,7 @@ public class ForgeRegistry<V extends IForgeRegistryEntry<V>> implements IForgeRe
             int id = from.getID(entry.getKey());
             if (overrides.isEmpty())
             {
-                int realId = add(id, entry.getValue());
-                if (id != realId && id != -1)
-                {
-                    FMLLog.log.warn("Registry {}: Object did not get ID it asked for. Name: {} Expected: {} Got: {}", this.superType.getSimpleName(), entry.getKey(), id, realId);
-                    errored = true;
-                }
+                add(id, entry.getValue()); // requested id is only a seed; the frozen numbering is derived
             }
             else
             {
@@ -576,17 +543,8 @@ public class ForgeRegistry<V extends IForgeRegistryEntry<V>> implements IForgeRe
                 {
                     OverrideOwner owner = from.owners.inverse().get(value);
                     if (owner == null)
-                    {
-                        FMLLog.log.warn("Registry {}: Override did not have an associated owner object. Name: {} Value: {}", this.superType.getSimpleName(), entry.getKey(), value);
-                        errored = true;
-                        continue;
-                    }
-                    int realId = add(id, value, owner.owner);
-                    if (id != realId && id != -1)
-                    {
-                        FMLLog.log.warn("Registry {}: Object did not get ID it asked for. Name: {} Expected: {} Got: {}", this.superType.getSimpleName(), entry.getKey(), id, realId);
-                        errored = true;
-                    }
+                        throw new IllegalStateException(String.format("Registry %s: Override did not have an associated owner object. Name: %s Value: %s", this.superType.getSimpleName(), entry.getKey(), value));
+                    add(id, value, owner.owner);
                 }
             }
         }
@@ -594,9 +552,6 @@ public class ForgeRegistry<V extends IForgeRegistryEntry<V>> implements IForgeRe
         //Needs to be below add so that dummies are persisted
         this.dummies.clear();
         from.dummies.forEach(this::addDummy);
-
-        if (errored)
-            throw new RuntimeException("One of more entry values did not copy to the correct id. Check log for details!");
     }
 
 
@@ -619,7 +574,7 @@ public class ForgeRegistry<V extends IForgeRegistryEntry<V>> implements IForgeRe
 
         this.ids.clear();
         this.names.clear();
-        this.availabilityMap.clear(0, this.availabilityMap.length());
+        this.nextSeed = 0;
         this.byId = null;
         this.idOf = null;
     }
@@ -650,7 +605,6 @@ public class ForgeRegistry<V extends IForgeRegistryEntry<V>> implements IForgeRe
     void block(int id)
     {
         this.blocked.add(id);
-        this.availabilityMap.set(id);
     }
 
     @Override
@@ -885,8 +839,8 @@ public class ForgeRegistry<V extends IForgeRegistryEntry<V>> implements IForgeRe
         if (DEBUG)
             FMLLog.log.debug("Registry Dummy Add: {} {} -> {}", key, id, dummy);
 
-        //It was blocked before so we need to unset the blocking map
-        this.availabilityMap.clear(id);
+        //It was blocked before so we need to unblock the id before the dummy can take it
+        this.blocked.remove(id);
         if (this.containsKey(key))
         {
             //If the entry already exists, we need to delete it so we can add a dummy...
@@ -907,6 +861,7 @@ public class ForgeRegistry<V extends IForgeRegistryEntry<V>> implements IForgeRe
         }
 
         int realId = this.add(id, dummy);
+        this.blocked.add(id); // the set is what snapshots record; keep the id marked
         if (realId != id)
             FMLLog.log.warn("Registry {}: Object did not get ID it asked for. Name: {} Expected: {} Got: {}", this.superType.getSimpleName(), key, id, realId);
         this.dummies.add(key);

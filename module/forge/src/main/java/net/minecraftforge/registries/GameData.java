@@ -104,20 +104,6 @@ public class GameData
     public static final ResourceLocation PROFESSIONS  = new ResourceLocation("minecraft:villagerprofessions");
     public static final ResourceLocation SERIALIZERS  = new ResourceLocation("minecraft:dataserializers");
 
-    private static final int MAX_BLOCK_ID = Integer.MAX_VALUE >> 5; // Cleanroom: chunks save block names, packets use varints (was 4095: 12 bits in Anvil sections)
-    private static final int MIN_ITEM_ID = 4096; // first id for items without a block id (vanilla item blocks reuse their block's id)
-    private static final int MAX_ITEM_ID = Integer.MAX_VALUE >> 5; // Cleanroom: item stacks use varints on the network (was 31999: a short)
-    private static final int MAX_POTION_ID = Integer.MAX_VALUE >> 5; // Cleanroom: SPacketEntityEffect sends varints, NBT widens past a byte (was 255)
-    private static final int MAX_BIOME_ID = Integer.MAX_VALUE >> 5; // Cleanroom: chunks save biome names, packets use varints (was 255: a byte per column)
-    private static final int MAX_SOUND_ID = Integer.MAX_VALUE >> 5; // Varint (SPacketSoundEffect)
-    private static final int MAX_POTIONTYPE_ID = Integer.MAX_VALUE >> 5; // Int (SPacketEffect)
-    private static final int MAX_ENCHANTMENT_ID = Integer.MAX_VALUE >> 5; // Cleanroom: ItemStack NBT widens past a short (was Short.MAX_VALUE - 1)
-    private static final int MAX_ENTITY_ID = Integer.MAX_VALUE >> 5; // Varint (SPacketSpawnMob)
-    private static final int MAX_RECIPE_ID = Integer.MAX_VALUE >> 5; // Varint CPacketRecipeInfo/SPacketRecipeBook
-    private static final int MAX_PROFESSION_ID = Integer.MAX_VALUE >> 5; // Cleanroom: villagers save ProfessionName, sync a varint (was 1024)
-    private static final int MIN_SERIALIZER_ID = 256; // Leave room for vanilla entries
-    private static final int MAX_SERIALIZER_ID = Integer.MAX_VALUE >> 5; // Varint (EntityDataManager)
-
     private static final ResourceLocation BLOCK_TO_ITEM         = new ResourceLocation("minecraft:blocktoitemmap");
     private static final ResourceLocation BLOCKSTATE_TO_ID      = new ResourceLocation("minecraft:blockstatetoid");
     private static final ResourceLocation BLOCKSTATE_TO_LEGACY_ID = new ResourceLocation("cleanroom:blockstatetolegacyid");
@@ -142,30 +128,26 @@ public class GameData
         if (hasInit)
             return;
         hasInit = true;
-        makeRegistry(BLOCKS,       Block.class,       MAX_BLOCK_ID, new ResourceLocation("air")).addCallback(BlockCallbacks.INSTANCE).create();
-        makeRegistry(ITEMS,        Item.class,        MIN_ITEM_ID, MAX_ITEM_ID).addCallback(ItemCallbacks.INSTANCE).create();
-        makeRegistry(POTIONS,      Potion.class,      MAX_POTION_ID).create();
-        makeRegistry(BIOMES,       Biome.class,       MAX_BIOME_ID).addCallback(BiomeCallbacks.INSTANCE).create();
-        makeRegistry(SOUNDEVENTS,  SoundEvent.class,  MAX_SOUND_ID).create();
-        makeRegistry(POTIONTYPES,  PotionType.class,  MAX_POTIONTYPE_ID, new ResourceLocation("empty")).create();
-        makeRegistry(ENCHANTMENTS, Enchantment.class, MAX_ENCHANTMENT_ID).create();
-        makeRegistry(RECIPES,      IRecipe.class,     MAX_RECIPE_ID).disableSaving().allowModification().addCallback(RecipeCallbacks.INSTANCE).create();
-        makeRegistry(PROFESSIONS,  VillagerProfession.class, MAX_PROFESSION_ID).create();
-        makeRegistry(SERIALIZERS,  DataSerializerEntry.class, MIN_SERIALIZER_ID, MAX_SERIALIZER_ID).disableSaving().disableOverrides().addCallback(SerializerCallbacks.INSTANCE).create();
-        entityRegistry = (ForgeRegistry<EntityEntry>)makeRegistry(ENTITIES, EntityEntry.class, MAX_ENTITY_ID).addCallback(EntityCallbacks.INSTANCE).create();
+        makeRegistry(BLOCKS,       Block.class,       new ResourceLocation("air")).addCallback(BlockCallbacks.INSTANCE).create();
+        makeRegistry(ITEMS,        Item.class).addCallback(ItemCallbacks.INSTANCE).create();
+        makeRegistry(POTIONS,      Potion.class).create();
+        makeRegistry(BIOMES,       Biome.class).addCallback(BiomeCallbacks.INSTANCE).create();
+        makeRegistry(SOUNDEVENTS,  SoundEvent.class).create();
+        makeRegistry(POTIONTYPES,  PotionType.class, new ResourceLocation("empty")).create();
+        makeRegistry(ENCHANTMENTS, Enchantment.class).create();
+        makeRegistry(RECIPES,      IRecipe.class).disableSaving().allowModification().addCallback(RecipeCallbacks.INSTANCE).create();
+        makeRegistry(PROFESSIONS,  VillagerProfession.class).create();
+        makeRegistry(SERIALIZERS,  DataSerializerEntry.class).disableSaving().disableOverrides().addCallback(SerializerCallbacks.INSTANCE).create();
+        entityRegistry = (ForgeRegistry<EntityEntry>)makeRegistry(ENTITIES, EntityEntry.class).addCallback(EntityCallbacks.INSTANCE).create();
     }
 
-    private static <T extends IForgeRegistryEntry<T>> RegistryBuilder<T> makeRegistry(ResourceLocation name, Class<T> type, int min, int max)
+    private static <T extends IForgeRegistryEntry<T>> RegistryBuilder<T> makeRegistry(ResourceLocation name, Class<T> type)
     {
-        return new RegistryBuilder<T>().setName(name).setType(type).setIDRange(min, max).addCallback(new NamespacedWrapper.Factory<T>());
+        return new RegistryBuilder<T>().setName(name).setType(type).addCallback(new NamespacedWrapper.Factory<T>());
     }
-    private static <T extends IForgeRegistryEntry<T>> RegistryBuilder<T> makeRegistry(ResourceLocation name, Class<T> type, int max)
+    private static <T extends IForgeRegistryEntry<T>> RegistryBuilder<T> makeRegistry(ResourceLocation name, Class<T> type, ResourceLocation _default)
     {
-        return new RegistryBuilder<T>().setName(name).setType(type).setMaxID(max).addCallback(new NamespacedWrapper.Factory<T>());
-    }
-    private static <T extends IForgeRegistryEntry<T>> RegistryBuilder<T> makeRegistry(ResourceLocation name, Class<T> type, int max, ResourceLocation _default)
-    {
-        return new RegistryBuilder<T>().setName(name).setType(type).setMaxID(max).addCallback(new NamespacedDefaultedWrapper.Factory<T>()).setDefaultKey(_default);
+        return new RegistryBuilder<T>().setName(name).setType(type).addCallback(new NamespacedDefaultedWrapper.Factory<T>()).setDefaultKey(_default);
     }
 
     public static <V extends IForgeRegistryEntry<V>> RegistryNamespacedDefaultedByKey<ResourceLocation, V> getWrapperDefaulted(Class<V> cls)

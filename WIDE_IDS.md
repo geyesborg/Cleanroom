@@ -475,7 +475,9 @@ To do:
 - [x] Numbering derived at `freeze()`: vanilla names claim vanilla's ids, the rest fill free ids by name;
       `getID`/`getValue`/iterator read dense arrays once frozen (`ForgeRegistry.renumber`). Registration-time
       ids still come from the `BitSet` until freeze.
-- [ ] Remove `BitSet`, `min`/`max`, `MIN_ITEM_ID`, snapshots, dummies now that they only seed names.
+- [x] `BitSet`, `min`/`max`, every `MAX_*_ID`/`MIN_ITEM_ID` removed; `setIDRange`/`setMaxID` are deprecated
+      no-ops. 70,000 entries register and number densely.
+- [ ] Remove snapshots and dummies (with the manifest).
 - [ ] Immutable array after freeze; remove public `unfreeze()`.
 - [ ] One manager; drop `FROZEN`/`STAGING` and freeze/revert copying.
 - [ ] Derived indices (block states, block→item, entity class→entry) as typed classes rebuilt on freeze.
