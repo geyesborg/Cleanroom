@@ -220,20 +220,26 @@ sends one **hash per registry** (the ordered names) to verify the lists match; a
 differ, which the mod-list handshake reports anyway. This replaces Forge's `RegistryData` message (name→number
 map plus dummied set) entirely.
 
-**Protocol.** The server sends, per synced registry, the **name count N and a hash of its N ordered names**
-(SHA-256 over each name's UTF-8 bytes followed by a zero byte, in id order; first 8 bytes as a long). The
-client hashes its own first N names in the same registry. Match: numbers agree for everything the server
-has. Mismatch, or a server registry the client lacks: refused, with the registry and both counts in the
-disconnect message. A registry the client has and the server does not is client-only and ignored. The
-client never renumbers itself to the server: there is nothing to renumber to. No dummies, no
-`injectSnapshot` on connect.
+**The server's numbering is authoritative; the hash is the fast path.** The server sends, per synced
+registry, the **name count N and a hash of its N ordered names** (SHA-256 over each name's UTF-8 bytes
+followed by a zero byte, in id order; first 8 bytes as a long). The client hashes its own first N names in
+the same registry. Match (the normal case, identical mods): numbers already agree and nothing is sent or
+changed. No dummies, no `injectSnapshot` on connect.
 
-**Client-only registrations in a synced registry are refused**, not appended. An entry a client-side mod adds
-to blocks/items/etc. sorts by name among the server's entries and shifts them, and the client cannot tell
-which names are its own without the server's list. Forge dummied such entries; they were never usable. A
-later refinement can have the client fetch the server's name list on mismatch to report the exact missing
-names and to append genuine client-only extras; that is a round-trip only on failure. Not in the first
-version.
+**On mismatch the client asks for the server's name list** for that registry (one extra round-trip, only when
+something differs) and reconciles against it:
+- Names the server has that the client lacks: **refused**, naming them exactly, since the client cannot
+  represent them.
+- Names the client has that the server lacks (an entry a client-side mod registers: minimap markers, camera
+  mods, debug tools): the client **renumbers that registry to the server's order and appends its own extras
+  after the server's block**, so every id the server uses means the same thing on both sides and the extras
+  stay usable client-side. Forge dummied these; this keeps them.
+- A registry the server does not send at all is client-only and ignored.
+The client reverts to its own derived numbering on disconnect, as it must (the next server may differ).
+
+*Status:* the hash check and refusal are built (`RegistrySync`). The name-list request and client-side
+reconciliation are **not yet built**; today a client with extra entries in a synced registry is refused. This
+is the "server decides" behaviour and it is the next network item.
 
 **Overrides** (two mods registering one name) do not need syncing: an override changes which object is behind
 a name, not the order of names, so the hash and the numbers are unaffected. If only one side has the overriding
@@ -500,9 +506,9 @@ pin numbering once the server is running and append new entries after the pinned
 exception to "derived at freeze", scoped to registries nothing saves); (b) accept it and document
 "reconnect after a recipe reload". Proposed: (a).
 
-**Hash handshake edge.** Entries a client-only mod adds to a synced registry are refused, not appended (Forge
-dummied them). Is there a legitimate case where the two sides should differ that the hash would wrongly
-reject?
+**Hash handshake edge: resolved in design (2026-10-08).** The server's numbering is authoritative. On
+mismatch the client fetches the server's name list and renumbers to it, appending its own extras; only names
+the server has and the client lacks are a refusal. Not yet built.
 
 Resolved since first written: the login message is one `RegistryHashes`; the biome array stays a real
 `byte[]` snapshot so an escape loses the write rather than failing the class load; the saved-number audit found
@@ -546,6 +552,11 @@ To do:
       so derived numbering already covers every lookup (verified, no change needed).
 - [ ] Stop writing `FML Registries`; read it once on first load of an old world to build the legacy maps.
 - [ ] `RegistrySync.local`: skip registries with no non-`minecraft` entries.
+- [ ] Server-authoritative reconciliation on hash mismatch: client requests the server's name list for the
+      registry, renumbers to it, appends client-only extras; refusal names the exact missing entries; revert to
+      own numbering on disconnect.
+- [ ] Make `unfreeze()` non-public: a registry freezes once at startup and never reopens. The recipe reload is
+      handled as its own case (pinned numbering for modifiable registries), not by reopening.
 - [x] Audit for saved numeric registry ids: found potion effects, beacon effects, enchantment lists and the
       piston's `blockId` (see Saving). Villagers, tile ticks, entities, spawners, items were already names.
 - [x] Audit for numeric-offset conventions: clean. `MUTATION_TO_BASE_ID_MAP` is an object map, `GenLayer`s
