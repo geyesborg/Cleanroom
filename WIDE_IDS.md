@@ -204,7 +204,9 @@ Names only.
 | Chunk biomes | `BiomePalette` + `BiomeIndices`. Already on the branch. |
 | Item damage, enchantment `id`, potion `Id` | `int` tags. Byte/short/int tags compare equal by value (`NBTPrimitive`), so a short from a mod or an older save is the same tag. |
 | Enderman carried block | `carriedBlockState` by name. |
-| Tile entities, entities | Already by name in vanilla. Any Cleanroom patch that saves a number gets the same treatment. |
+| Potion effects (`ActiveEffects`, `CustomPotionEffects`), beacon `Primary`/`Secondary` | Were still numeric after the int widening (range fixed, stability not: a modded potion's number changes when the mod set does). Now write the registry `Name` beside `Id` and read the name first. **A name that is present but does not resolve is "missing" (null), never the id**: a shifted id would rebind to a different potion, which is what the name exists to prevent. The id path is only for compounds with no name (old saves, mod-built tags). |
+| Enchantment lists (`ench`, `StoredEnchantments`) | Same: `name` beside `id`, read through one `EnchantmentHelper.enchantmentFrom`, same missing rule. Caveat: a mod that builds an `ench` compound by hand (no `name`) yields a stack that no longer equals ours by NBT; vanilla had the same property and mods use `addEnchantment`/`setEnchantments`, which write the name. |
+| Tile entities, entities | Already by name in vanilla. `TileEntityPiston` no longer writes `blockId`/`blockData` (its `blockState` by name is what is read; the old tags are still read from old saves). Villagers already write `ProfessionName`. |
 | `level.dat` | Only the `cleanroom_ids.Format` marker. **`FML Registries` is no longer written.** |
 
 A world saved in this format does not load on Forge, older Cleanroom, or any ID mod. The format marker makes
@@ -537,9 +539,14 @@ To do:
       so derived numbering already covers every lookup (verified, no change needed).
 - [ ] Stop writing `FML Registries`; read it once on first load of an old world to build the legacy maps.
 - [ ] `RegistrySync.local`: skip registries with no non-`minecraft` entries.
-- [ ] Audit Cleanroom patches for any other saved numeric registry ID.
-- [ ] Audit vanilla/Forge 1.12 code for numeric-offset conventions on registry ids (`+ 128` biome mutations
-      are gone in 1.12, but check for any arithmetic on an id that assumes vanilla's layout).
+- [x] Audit for saved numeric registry ids: found potion effects, beacon effects, enchantment lists and the
+      piston's `blockId` (see Saving). Villagers, tile ticks, entities, spawners, items were already names.
+- [x] Audit for numeric-offset conventions: clean. `MUTATION_TO_BASE_ID_MAP` is an object map, `GenLayer`s
+      compare vanilla ids by equality (vanilla keeps them), `StatList` arrays are registry-sized, creeper record
+      drops assume vanilla records are contiguous (they are). One runtime cap found instead:
+      `ItemModelMesher` keys models by `itemId << 16 | meta`, which collides past item id 65,535.
+- [x] Audit findings fixed: potion/beacon/enchantment names in NBT (unresolvable name = missing, not the id),
+      piston `blockId` dropped, `ItemModelMesher` keyed by a long (`ItemModelKey`).
 - [ ] Metadata as a compatibility view only: `getStateFromMeta`/`getMetaFromState` stay for mods, nothing
       internal uses `id << 4 | meta` except the legacy chunk reader.
 - [ ] `/cleanroom ids`: registry sizes and the owning mod per name range. (Optional.)

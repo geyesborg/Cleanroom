@@ -1461,7 +1461,7 @@ public class ForgeHooks
                 if (enchantmentsNbt.tagCount() == 1)
                 {
                     NBTTagCompound nbttagcompound = enchantmentsNbt.getCompoundTagAt(0);
-                    Enchantment enchantment = Enchantment.getEnchantmentByID(nbttagcompound.getInteger("id")); // Cleanroom: short or int
+                    Enchantment enchantment = EnchantmentHelper.enchantmentFrom(nbttagcompound); // Cleanroom: name first, then id
                     if (enchantment != null)
                     {
                         ResourceLocation resourceLocation = ForgeRegistries.ENCHANTMENTS.getKey(enchantment);

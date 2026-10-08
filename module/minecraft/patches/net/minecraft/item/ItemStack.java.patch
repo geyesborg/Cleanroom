@@ -260,16 +260,18 @@
          }
      }
  
-@@ -558,7 +608,7 @@
+@@ -558,9 +608,8 @@
  
                  for (int j = 0; j < nbttaglist.tagCount(); j++) {
                      NBTTagCompound nbttagcompound = nbttaglist.getCompoundTagAt(j);
 -                    int k = nbttagcompound.getShort("id");
-+                    int k = nbttagcompound.getInteger("id"); // Cleanroom: short or int
                      int l = nbttagcompound.getShort("lvl");
-                     Enchantment enchantment = Enchantment.getEnchantmentByID(k);
+-                    Enchantment enchantment = Enchantment.getEnchantmentByID(k);
++                    Enchantment enchantment = EnchantmentHelper.enchantmentFrom(nbttagcompound); // Cleanroom: name first, then id
                      if (enchantment != null) {
-@@ -646,6 +696,7 @@
+                         list.add(enchantment.getTranslatedName(l));
+                     }
+@@ -646,6 +695,7 @@
                                      I18n.translateToLocal("attribute.name." + entry.getKey())
                                  )
                          );
@@ -277,7 +279,7 @@
                      }
                  }
              }
-@@ -700,6 +751,7 @@
+@@ -700,6 +750,7 @@
              }
          }
  
@@ -285,7 +287,7 @@
          return list;
      }
  
-@@ -708,6 +760,7 @@
+@@ -708,6 +759,7 @@
          return this.getItem().hasEffect(this);
      }
  
@@ -293,16 +295,20 @@
      public EnumRarity getRarity() {
          return this.getItem().getRarity(this);
      }
-@@ -729,7 +782,7 @@
+@@ -729,7 +781,11 @@
  
          NBTTagList nbttaglist = this.stackTagCompound.getTagList("ench", 10);
          NBTTagCompound nbttagcompound = new NBTTagCompound();
 -        nbttagcompound.setShort("id", (short)Enchantment.getEnchantmentID(ench));
 +        nbttagcompound.setInteger("id", Enchantment.getEnchantmentID(ench)); // Cleanroom: any id (was a short)
++        ResourceLocation enchName = Enchantment.REGISTRY.getNameForObject(ench); // Cleanroom: names are stable when ids shift
++        if (enchName != null) {
++            nbttagcompound.setString("name", enchName.toString());
++        }
          nbttagcompound.setShort("lvl", (byte)level);
          nbttaglist.appendTag(nbttagcompound);
      }
-@@ -808,7 +861,7 @@
+@@ -808,7 +864,7 @@
                  }
              }
          } else {
@@ -311,7 +317,7 @@
          }
  
          return multimap;
-@@ -844,7 +897,7 @@
+@@ -844,7 +900,7 @@
          if (!this.isEmpty) {
              NBTTagCompound nbttagcompound = this.writeToNBT(new NBTTagCompound());
              itextcomponent.getStyle().setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_ITEM, new TextComponentString(nbttagcompound.toString())));
@@ -320,7 +326,7 @@
          }
  
          return itextcomponent;
-@@ -925,4 +978,110 @@
+@@ -925,4 +981,110 @@
      public void shrink(int quantity) {
          this.grow(-quantity);
      }

@@ -79,6 +79,7 @@ public class WideItemDataTest {
         NBTTagList ench = new NBTTagList();
         NBTTagCompound entry = new NBTTagCompound();
         entry.setShort("id", (short) Enchantment.getEnchantmentID(Enchantments.SHARPNESS));
+        entry.setString("name", Enchantments.SHARPNESS.getRegistryName().toString());
         entry.setShort("lvl", (short) 3);
         ench.appendTag(entry);
         modTag.setTag("ench", ench);

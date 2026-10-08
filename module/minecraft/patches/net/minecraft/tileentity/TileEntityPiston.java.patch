@@ -18,10 +18,12 @@
          this.pistonFacing = EnumFacing.byIndex(compound.getInteger("facing"));
          this.progress = compound.getFloat("progress");
          this.lastProgress = this.progress;
-@@ -383,6 +383,7 @@
+@@ -381,8 +381,7 @@
+     @Override
+     public NBTTagCompound writeToNBT(NBTTagCompound compound) {
          super.writeToNBT(compound);
-         compound.setInteger("blockId", Block.getIdFromBlock(this.pistonState.getBlock()));
-         compound.setInteger("blockData", this.pistonState.getBlock().getMetaFromState(this.pistonState));
+-        compound.setInteger("blockId", Block.getIdFromBlock(this.pistonState.getBlock()));
+-        compound.setInteger("blockData", this.pistonState.getBlock().getMetaFromState(this.pistonState));
 +        compound.setTag("blockState", net.minecraft.nbt.NBTUtil.writeBlockState(new NBTTagCompound(), this.pistonState)); // Cleanroom: by name, any block id or state
          compound.setInteger("facing", this.pistonFacing.getIndex());
          compound.setFloat("progress", this.lastProgress);
