@@ -35,7 +35,7 @@ import java.util.Map;
 public class IdFormatContainer extends DummyModContainer implements WorldAccessContainer {
     public static final String MOD_ID = "cleanroom_ids";
     public static final String SAVE_FORMAT = "1";
-    public static final String NETWORK_FORMAT = "3";
+    public static final String NETWORK_FORMAT = "4";
     public static final String FORMAT = SAVE_FORMAT;
     private static final Logger LOGGER = LogManager.getLogger("Cleanroom");
 

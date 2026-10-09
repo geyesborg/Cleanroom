@@ -431,7 +431,8 @@ the natural moment for, but each widens scope or touches the mod-facing API and 
 - **Single registration phase.** Forge fires `RegistryEvent.Register<Block>`, then `<Item>`, then the rest,
   in a fixed order mods must know. With deterministic sorting, registration order does not affect numbering,
   so all registries could be open in one event. Existing per-type events keep firing in order for old mods.
-  *API-visible.*
+  *API-visible.* Done: `RegistryEvent.RegisterAll` fires once, before `Register<Block>`, with every registry
+  open (`get(key)`, `get(Class)`, `keys()`); the per-type events follow unchanged.
 - **Derived indices instead of slave maps.** `getSlaveMap(BLOCK_TO_ITEM)`, `BLOCKSTATE_TO_ID`,
   `ENTITY_CLASS_TO_ENTRY` are untyped maps bolted onto registries by string key. `BlockStateIdMap` on the
   branch is already the better shape: a class that declares which registry it derives from and rebuilds when
@@ -441,7 +442,10 @@ the natural moment for, but each widens scope or touches the mod-facing API and 
   have a `ResourceLocation` key; look them up by it. The class lookup stays as a shim.
 - **One handshake message.** Mod list, per-registry count+hash, format version, in one packet with one
   rejection reason. Forge's multi-message state machine exists partly because `RegistryData` had to be chunked;
-  hashes do not. *Protocol-visible.*
+  hashes do not. *Protocol-visible.* Done: the server's `ModList` carries the registry hashes (handshake
+  protocol 3, `cleanroom_ids` network format 4); the client answers with one ack, one name-list request, or
+  one refusal whose reason covers mods and registries together. `RegistryHashes` and the client's
+  `WAITINGSERVERCOMPLETE` state are gone.
 
 ### Left alone, deliberately
 

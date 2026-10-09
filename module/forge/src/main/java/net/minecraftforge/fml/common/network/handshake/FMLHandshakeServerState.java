@@ -22,6 +22,8 @@ package net.minecraftforge.fml.common.network.handshake;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.function.Consumer;
 
 import net.minecraftforge.fml.common.FMLLog;
@@ -73,7 +75,11 @@ enum FMLHandshakeServerState implements IHandshakeState<FMLHandshakeServerState>
                 return;
             }
             cons.accept(WAITINGCACK);
-            ctx.writeAndFlush(new FMLHandshakeMessage.ModList(Loader.instance().getActiveModList()));
+            // Protocol 3+: our registry hashes ride on the ModList, so the client can accept,
+            // request name lists, or refuse with one combined reason without another round trip.
+            boolean isLocal = ctx.channel().attr(NetworkDispatcher.IS_LOCAL).get();
+            List<RegistrySync.Entry> hashes = isLocal ? Collections.<RegistrySync.Entry>emptyList() : RegistrySync.local(RegistryManager.ACTIVE, false);
+            ctx.writeAndFlush(new FMLHandshakeMessage.ModList(Loader.instance().getActiveModList(), hashes));
         }
     },
     WAITINGCACK
@@ -81,11 +87,14 @@ enum FMLHandshakeServerState implements IHandshakeState<FMLHandshakeServerState>
         @Override
         public void accept(ChannelHandlerContext ctx, FMLHandshakeMessage msg, Consumer<? super FMLHandshakeServerState> cons)
         {
-            cons.accept(COMPLETE);
-            if (!ctx.channel().attr(NetworkDispatcher.IS_LOCAL).get())
+            if (msg instanceof FMLHandshakeMessage.RegistryNamesRequest)
             {
-                ctx.writeAndFlush(new FMLHandshakeMessage.RegistryHashes(RegistrySync.local(RegistryManager.ACTIVE, false))).addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
+                // A client whose hash mismatched asks for our name order per registry before it
+                // acks; answer and stay here waiting for that ack.
+                answerRegistryNamesRequest(ctx, (FMLHandshakeMessage.RegistryNamesRequest)msg);
+                return;
             }
+            cons.accept(COMPLETE);
             ctx.writeAndFlush(new FMLHandshakeMessage.HandshakeAck(ordinal())).addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
             NetworkRegistry.INSTANCE.fireNetworkHandshake(ctx.channel().attr(NetworkDispatcher.FML_DISPATCHER).get(), Side.SERVER);
         }
@@ -97,20 +106,9 @@ enum FMLHandshakeServerState implements IHandshakeState<FMLHandshakeServerState>
         {
             if (msg instanceof FMLHandshakeMessage.RegistryNamesRequest)
             {
-                // A client whose hash mismatched asks for our name order per registry. Answer and
-                // stay in COMPLETE: its HandshakeAck still has to arrive here to finish the login.
-                for (ResourceLocation name : ((FMLHandshakeMessage.RegistryNamesRequest)msg).registries())
-                {
-                    ForgeRegistry<?> reg = RegistryManager.ACTIVE.getRegistry(name);
-                    if (reg == null)
-                    {
-                        continue; // not a registry we sync - ignore the request
-                    }
-                    for (FMLHandshakeMessage.RegistryNames reply : FMLHandshakeMessage.RegistryNames.split(name, RegistrySync.namesInOrder(reg)))
-                    {
-                        ctx.writeAndFlush(reply).addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
-                    }
-                }
+                // Defensive: protocol 3+ clients ask from WAITINGCACK before their ack. Answer and
+                // stay in COMPLETE: the HandshakeAck still has to arrive here to finish the login.
+                answerRegistryNamesRequest(ctx, (FMLHandshakeMessage.RegistryNamesRequest)msg);
                 return;
             }
             cons.accept(DONE);
@@ -127,6 +125,7 @@ enum FMLHandshakeServerState implements IHandshakeState<FMLHandshakeServerState>
         {
         }
     },
+
     ERROR
     {
         @Override
@@ -134,4 +133,20 @@ enum FMLHandshakeServerState implements IHandshakeState<FMLHandshakeServerState>
         {
         }
     };
+
+    private static void answerRegistryNamesRequest(ChannelHandlerContext ctx, FMLHandshakeMessage.RegistryNamesRequest msg)
+    {
+        for (ResourceLocation name : msg.registries())
+        {
+            ForgeRegistry<?> reg = RegistryManager.ACTIVE.getRegistry(name);
+            if (reg == null)
+            {
+                continue; // not a registry we sync - ignore the request
+            }
+            for (FMLHandshakeMessage.RegistryNames reply : FMLHandshakeMessage.RegistryNames.split(name, RegistrySync.namesInOrder(reg)))
+            {
+                ctx.writeAndFlush(reply).addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
+            }
+        }
+    }
 }

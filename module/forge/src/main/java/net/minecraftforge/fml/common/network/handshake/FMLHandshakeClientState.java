@@ -54,7 +54,7 @@ import net.minecraftforge.registries.RegistrySync;
  * Flow:
  * 1. Wait for server hello. (START). Move to HELLO state.
  * 2. Receive Server Hello. Send customchannel registration. Send Client Hello. Send our modlist. Move to WAITINGFORSERVERDATA state.
- * 3. Receive server modlist. Send ack if acceptable, else send nack and exit error. Receive server IDs. Move to COMPLETE state. Send ack.
+ * 3. Receive server modlist, which also carries the server's registry hashes. Reject (one reason covering mods and registries) and exit on refusal; on hash mismatches request the server's name lists and adopt its numbering, then ack through PENDINGCOMPLETE to COMPLETE.
  *
  * @author cpw
  *
@@ -113,33 +113,18 @@ enum FMLHandshakeClientState implements IHandshakeState<FMLHandshakeClientState>
         @Override
         public void accept(ChannelHandlerContext ctx, FMLHandshakeMessage msg, Consumer<? super FMLHandshakeClientState> cons)
         {
-            String modRejections = FMLNetworkHandler.checkModList((FMLHandshakeMessage.ModList) msg, Side.SERVER);
+            FMLHandshakeMessage.ModList pkt = (FMLHandshakeMessage.ModList)msg;
+            String modRejections = FMLNetworkHandler.checkModList(pkt, Side.SERVER);
+            List<ResourceLocation> mismatches = ctx.channel().attr(NetworkDispatcher.IS_LOCAL).get()
+                    ? new ArrayList<ResourceLocation>()
+                    : RegistrySync.mismatches(pkt.entries(), RegistryManager.ACTIVE);
             if (modRejections != null)
             {
                 cons.accept(ERROR);
                 NetworkDispatcher dispatcher = ctx.channel().attr(NetworkDispatcher.FML_DISPATCHER).get();
-                dispatcher.rejectHandshake(modRejections);
+                dispatcher.rejectHandshake(rejectionReason(modRejections, mismatches));
                 return;
             }
-            if (!ctx.channel().attr(NetworkDispatcher.IS_LOCAL).get())
-            {
-                cons.accept(WAITINGSERVERCOMPLETE);
-            }
-            else
-            {
-                cons.accept(PENDINGCOMPLETE);
-            }
-            ctx.writeAndFlush(new FMLHandshakeMessage.HandshakeAck(ordinal())).addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
-
-        }
-    },
-    WAITINGSERVERCOMPLETE
-    {
-        @Override
-        public void accept(ChannelHandlerContext ctx, FMLHandshakeMessage msg, Consumer<? super FMLHandshakeClientState> cons)
-        {
-            FMLHandshakeMessage.RegistryHashes pkt = (FMLHandshakeMessage.RegistryHashes)msg;
-            List<ResourceLocation> mismatches = RegistrySync.mismatches(pkt.entries(), RegistryManager.ACTIVE);
             if (!mismatches.isEmpty())
             {
                 // The server's numbering is authoritative: ask for its ordered name list per
@@ -281,6 +266,26 @@ enum FMLHandshakeClientState implements IHandshakeState<FMLHandshakeClientState>
                 names.put(name, new ArrayList<ResourceLocation>());
             }
         }
+    }
+
+    // One reject reason for a login refused at the mod-list step: mod problems first, then the
+    // registries whose hashes did not match.
+    static String rejectionReason(String modRejections, List<ResourceLocation> mismatches)
+    {
+        StringBuilder sb = new StringBuilder(modRejections);
+        if (!mismatches.isEmpty())
+        {
+            sb.append("\nRegistry hash mismatches: ");
+            for (int i = 0; i < mismatches.size(); i++)
+            {
+                if (i > 0)
+                {
+                    sb.append(", ");
+                }
+                sb.append(mismatches.get(i));
+            }
+        }
+        return sb.toString();
     }
 
     private static String missingEntriesMessage(PendingRegistryNames pending)

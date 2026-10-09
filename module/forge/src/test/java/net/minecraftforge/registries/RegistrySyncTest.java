@@ -13,6 +13,7 @@ import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
 import net.minecraft.item.Item;
 import net.minecraft.util.ResourceLocation;
+import net.minecraftforge.fml.common.network.ByteBufUtils;
 import net.minecraftforge.fml.common.network.handshake.FMLHandshakeMessage;
 import net.minecraftforge.fml.common.registry.ForgeTestRunner;
 import net.minecraftforge.fml.common.registry.MinecraftTestHarness;
@@ -207,20 +208,48 @@ public class RegistrySyncTest
     }
 
     @Test
-    public void registryHashesWireRoundTrip()
+    public void modListCarriesRegistryHashesRoundTrip()
     {
         List<RegistrySync.Entry> entries = Arrays.asList(
                 new RegistrySync.Entry(new ResourceLocation("minecraft", "blocks"), 408, 0x0102030405060708L),
                 new RegistrySync.Entry(new ResourceLocation("wideids_test", "extras"), 3, -1L));
 
-        FMLHandshakeMessage.RegistryHashes out = new FMLHandshakeMessage.RegistryHashes(entries);
+        FMLHandshakeMessage.ModList out = new FMLHandshakeMessage.ModList(java.util.Collections.emptyList(), entries);
         ByteBuf buf = Unpooled.buffer();
         out.toBytes(buf);
 
-        FMLHandshakeMessage.RegistryHashes in = new FMLHandshakeMessage.RegistryHashes();
+        FMLHandshakeMessage.ModList in = new FMLHandshakeMessage.ModList();
         in.fromBytes(buf);
 
+        assertEquals(0, in.modListSize());
         assertEquals(entries, in.entries());
+        buf.release();
+    }
+
+    @Test
+    public void modListWithoutHashSectionDecodesEmpty()
+    {
+        FMLHandshakeMessage.ModList out = new FMLHandshakeMessage.ModList();
+        ByteBuf buf = Unpooled.buffer();
+        ByteBufUtils.writeVarInt(buf, 0, 2); // protocol 2 ModList: mods only, no trailing section
+
+        out.fromBytes(buf);
+
+        assertTrue(out.entries().isEmpty());
+        buf.release();
+    }
+
+    @Test
+    public void clientModListWritesEmptyHashSection()
+    {
+        FMLHandshakeMessage.ModList out = new FMLHandshakeMessage.ModList(java.util.Collections.emptyList());
+        ByteBuf buf = Unpooled.buffer();
+        out.toBytes(buf);
+
+        FMLHandshakeMessage.ModList in = new FMLHandshakeMessage.ModList();
+        in.fromBytes(buf);
+
+        assertTrue(in.entries().isEmpty());
         buf.release();
     }
 

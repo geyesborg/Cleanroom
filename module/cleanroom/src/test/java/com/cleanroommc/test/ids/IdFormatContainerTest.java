@@ -17,14 +17,16 @@ public class IdFormatContainerTest {
         assertFalse(IdFormatContainer.checkRemote(Map.of(IdFormatContainer.MOD_ID, "1"), Side.CLIENT));
         assertFalse(IdFormatContainer.checkRemote(Map.of(IdFormatContainer.MOD_ID, "2"), Side.SERVER));
         assertFalse(IdFormatContainer.checkRemote(Map.of(IdFormatContainer.MOD_ID, "2"), Side.CLIENT));
+        assertFalse(IdFormatContainer.checkRemote(Map.of(IdFormatContainer.MOD_ID, "3"), Side.SERVER));
+        assertFalse(IdFormatContainer.checkRemote(Map.of(IdFormatContainer.MOD_ID, "3"), Side.CLIENT));
     }
 
     @Test
     public void advertisesTheNewNetworkLayoutWithoutChangingTheSaveFormat() {
-        assertTrue(IdFormatContainer.checkRemote(Map.of(IdFormatContainer.MOD_ID, "3"), Side.SERVER));
-        assertTrue(IdFormatContainer.checkRemote(Map.of(IdFormatContainer.MOD_ID, "3"), Side.CLIENT));
+        assertTrue(IdFormatContainer.checkRemote(Map.of(IdFormatContainer.MOD_ID, "4"), Side.SERVER));
+        assertTrue(IdFormatContainer.checkRemote(Map.of(IdFormatContainer.MOD_ID, "4"), Side.CLIENT));
         IdFormatContainer container = new IdFormatContainer();
-        assertEquals("3", container.getMetadata().version);
+        assertEquals("4", container.getMetadata().version);
         assertEquals("1", container.getDataForWriting(null, null).getString("Format"));
     }
 

@@ -120,12 +120,19 @@ public abstract class FMLHandshakeMessage {
         }
         public ModList(List<ModContainer> modList)
         {
+            this(modList, java.util.Collections.emptyList());
+        }
+
+        public ModList(List<ModContainer> modList, List<RegistrySync.Entry> entries)
+        {
+            this.entries = entries;
             for (ModContainer mod : modList)
             {
                 modTags.put(mod.getModId(), mod.getVersion());
             }
         }
         private Map<String,String> modTags = Maps.newHashMap();
+        private List<RegistrySync.Entry> entries = new ArrayList<>();
 
         @Override
         public void toBytes(ByteBuf buffer)
@@ -136,6 +143,15 @@ public abstract class FMLHandshakeMessage {
             {
                 ByteBufUtils.writeUTF8String(buffer, modTag.getKey());
                 ByteBufUtils.writeUTF8String(buffer, modTag.getValue());
+            }
+            // Trailing section (protocol 3+): the server's registry hashes ride along on the
+            // mod list. A client's own ModList always writes an empty section.
+            ByteBufUtils.writeVarInt(buffer, entries.size(), 5);
+            for (RegistrySync.Entry entry : entries)
+            {
+                ByteBufUtils.writeUTF8String(buffer, entry.registry().toString());
+                ByteBufUtils.writeVarInt(buffer, entry.count(), 5);
+                buffer.writeLong(entry.hash());
             }
         }
 
@@ -148,6 +164,23 @@ public abstract class FMLHandshakeMessage {
             {
                 modTags.put(ByteBufUtils.readUTF8String(buffer), ByteBufUtils.readUTF8String(buffer));
             }
+            entries = new ArrayList<>();
+            if (buffer.isReadable()) // protocol <3 ModLists carry no trailing hash section
+            {
+                int length = ByteBufUtils.readVarInt(buffer, 5);
+                for (int i = 0; i < length; i++)
+                {
+                    ResourceLocation name = new ResourceLocation(ByteBufUtils.readUTF8String(buffer));
+                    int count = ByteBufUtils.readVarInt(buffer, 5);
+                    long hash = buffer.readLong();
+                    entries.add(new RegistrySync.Entry(name, count, hash));
+                }
+            }
+        }
+
+        public List<RegistrySync.Entry> entries()
+        {
+            return entries;
         }
 
         public String modListAsString()
@@ -170,60 +203,6 @@ public abstract class FMLHandshakeMessage {
             return super.toString(side)+":"+modTags.size()+" mods";
         }
     }
-
-    public static class RegistryHashes extends FMLHandshakeMessage
-    {
-        public RegistryHashes()
-        {
-
-        }
-
-        public RegistryHashes(List<RegistrySync.Entry> entries)
-        {
-            this.entries = entries;
-        }
-
-        private List<RegistrySync.Entry> entries = new ArrayList<>();
-
-        @Override
-        public void fromBytes(ByteBuf buffer)
-        {
-            int length = ByteBufUtils.readVarInt(buffer, 5);
-            entries = new ArrayList<>(length);
-
-            for (int i = 0; i < length; i++)
-            {
-                ResourceLocation name = new ResourceLocation(ByteBufUtils.readUTF8String(buffer));
-                int count = ByteBufUtils.readVarInt(buffer, 5);
-                long hash = buffer.readLong();
-                entries.add(new RegistrySync.Entry(name, count, hash));
-            }
-        }
-
-        @Override
-        public void toBytes(ByteBuf buffer)
-        {
-            ByteBufUtils.writeVarInt(buffer, entries.size(), 5);
-            for (RegistrySync.Entry entry : entries)
-            {
-                ByteBufUtils.writeUTF8String(buffer, entry.registry().toString());
-                ByteBufUtils.writeVarInt(buffer, entry.count(), 5);
-                buffer.writeLong(entry.hash());
-            }
-        }
-
-        public List<RegistrySync.Entry> entries()
-        {
-            return entries;
-        }
-
-        @Override
-        public String toString(Class<? extends Enum<?>> side)
-        {
-            return super.toString(side) + ":"+entries.size()+" registries";
-        }
-    }
-
     /**
      * Client to server: after a hash mismatch, the registries whose full ordered name list the
      * client wants so it can adopt the server's numbering.
