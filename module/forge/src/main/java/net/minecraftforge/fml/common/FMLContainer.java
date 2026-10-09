@@ -169,7 +169,7 @@ public final class FMLContainer extends DummyModContainer implements WorldAccess
             {
                 snapshot.put(new ResourceLocation(key), ForgeRegistry.Snapshot.read(regs.getCompoundTag(key)));
             }
-            failedElements = GameData.injectSnapshot(snapshot, true, true);
+            failedElements = GameData.loadWorldSnapshot(snapshot);
         }
 
         if (failedElements != null && !failedElements.isEmpty())

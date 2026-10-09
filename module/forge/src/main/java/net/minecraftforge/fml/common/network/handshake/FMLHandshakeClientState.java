@@ -183,7 +183,7 @@ enum FMLHandshakeClientState implements IHandshakeState<FMLHandshakeClientState>
             }
             else
             {
-                // Renumbering touches registries the client thread iterates; run it there like injectSnapshot did.
+                // Renumbering touches registries the client thread iterates; run it there like world snapshot loading did.
                 RegistrySync.Reconciliation result = Futures.getUnchecked(Minecraft.getMinecraft().addScheduledTask(() -> RegistrySync.reconcile(registry, order)));
                 if (!result.missingLocally().isEmpty())
                 {
@@ -212,7 +212,7 @@ enum FMLHandshakeClientState implements IHandshakeState<FMLHandshakeClientState>
                     remaps.put(name, remap);
                 }
             }
-            // Same event injectSnapshot fired after adopting remote ids: not a freeze, the mappings revert on disconnect.
+            // Same remap event fired after adopting remote ids: not a freeze, the mappings revert on disconnect.
             Futures.getUnchecked(Minecraft.getMinecraft().addScheduledTask(() ->
             {
                 Loader.instance().fireRemapEvent(remaps, false);
@@ -253,7 +253,7 @@ enum FMLHandshakeClientState implements IHandshakeState<FMLHandshakeClientState>
             {
                 cons.accept(HELLO);
                 //Run the revert on the client thread in case things are currently running to prevent race conditions while rebuilding the registries.
-                Minecraft.getMinecraft().addScheduledTask(GameData::revertToFrozen);
+                Minecraft.getMinecraft().addScheduledTask(GameData::restoreLocalNumbering);
             }
         }
     },

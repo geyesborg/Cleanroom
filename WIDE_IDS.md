@@ -611,9 +611,14 @@ To do:
       ids still come from the `BitSet` until freeze.
 - [x] `BitSet`, `min`/`max`, every `MAX_*_ID`/`MIN_ITEM_ID` removed; `setIDRange`/`setMaxID` are deprecated
       no-ops. 70,000 entries register and number densely.
-- [ ] Remove snapshots and dummies (see the `level.dat` block below).
-- [ ] Immutable array after freeze; remove public `unfreeze()`.
-- [ ] One manager; drop `FROZEN`/`STAGING` and freeze/revert copying.
+- [x] Snapshots and dummies removed: `injectSnapshot`, `STAGING`, `DummyFactory`/`isDummied`/`addDummy`,
+      `BlockDummyAir`, `DummyRecipe`, `MissingFactory` gone (public setters kept as deprecated no-ops).
+      World load is `GameData.loadWorldSnapshot`: `LegacyIds`, then `MissingMappings` per registry with
+      REMAP recorded as an alias, FAIL aborting, everything else left to retention. No renumbering.
+- [x] `unfreeze()` package-private; recipe `/reload` goes through `GameData.revertRecipesToCode`.
+- [x] One manager: `FROZEN`/`VANILLA` deleted. "Revert" is `restoreLocalNumbering()`, a fresh derivation,
+      since the numbering is a function of the name set; the vanilla seed ids live in a per-registry
+      `vanillaBaseline` map captured at `vanillaSnapshot()`. Net −440 lines of registry code.
 - [ ] Derived indices (block states, block→item, entity class→entry) as typed classes rebuilt on freeze.
 - [ ] Registry lookup by `ResourceLocation` key; class lookup as a shim.
 - [ ] Callbacks once after all registrations, in registry order.
@@ -651,8 +656,9 @@ To do:
 - [x] `LegacyIds`: the saved `Registries` table decodes every legacy numeric read and is preserved verbatim;
       new worlds write none. (Derived numbering had silently broken legacy biome/potion/enchantment decode
       for modded entries; blocks only worked through injectSnapshot's seed ids.)
-- [ ] Remove dummies, blocked ids, `Snapshot` save/load, `injectSnapshot`'s reconciliation, `FROZEN`/`STAGING`
-      and `revertToFrozen`; one registry manager.
+- [x] Dummies, `injectSnapshot`'s reconciliation, `FROZEN`/`STAGING`/`VANILLA` and `revertToFrozen` removed; one
+      registry manager. `Snapshot` remains as the reader of old `level.dat` tables (`LegacyIds`, missing-mapping
+      detection); new worlds write none.
 
 Missing content (separate feature; retention is opt-in via a popup, state in its own `.dat`):
 

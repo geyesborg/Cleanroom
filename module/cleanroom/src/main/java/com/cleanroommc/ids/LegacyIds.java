@@ -25,7 +25,7 @@ import net.minecraftforge.registries.GameData;
  * keep their vanilla ids and resolve identically either way.
  *
  * <p>One world is open per process in 1.12 (all dimensions share level.dat), so a single static instance
- * is correct. Installed from {@code FMLContainer.readData} before {@code GameData.injectSnapshot}, cleared
+ * is correct. Installed from {@code FMLContainer.readData} before {@code GameData.loadWorldSnapshot}, cleared
  * when the server stops so the next world opened in this session does not inherit it.</p>
  */
 public final class LegacyIds {

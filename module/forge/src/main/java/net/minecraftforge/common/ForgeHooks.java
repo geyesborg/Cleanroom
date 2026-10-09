@@ -158,8 +158,6 @@ import net.minecraftforge.fml.common.registry.ForgeRegistries;
 import net.minecraftforge.registries.DataSerializerEntry;
 import net.minecraftforge.registries.ForgeRegistry;
 import net.minecraftforge.registries.GameData;
-import net.minecraftforge.registries.IForgeRegistry;
-import net.minecraftforge.registries.RegistryManager;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -1428,11 +1426,12 @@ public class ForgeHooks
         ConnectionType type = disp == null || disp.getConnectionType() == null ? ConnectionType.MODDED : disp.getConnectionType();
         if (type == ConnectionType.VANILLA)
         {
-            IForgeRegistry<IRecipe> vanilla = RegistryManager.VANILLA.getRegistry(IRecipe.class);
+            ForgeRegistry<IRecipe> recipes_ = (ForgeRegistry<IRecipe>)ForgeRegistries.RECIPES;
+            java.util.Set<ResourceLocation> vanilla = recipes_.getVanillaBaseline().keySet();
             if (!recipes.isEmpty())
-                recipes = recipes.stream().filter(vanilla::containsValue).collect(Collectors.toList());
+                recipes = recipes.stream().filter(r -> vanilla.contains(r.getRegistryName())).collect(Collectors.toList());
             if (!display.isEmpty())
-                display = display.stream().filter(vanilla::containsValue).collect(Collectors.toList());
+                display = display.stream().filter(r -> vanilla.contains(r.getRegistryName())).collect(Collectors.toList());
         }
 
         if (!recipes.isEmpty() || !display.isEmpty())

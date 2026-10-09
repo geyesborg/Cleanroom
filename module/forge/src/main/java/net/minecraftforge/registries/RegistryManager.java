@@ -38,8 +38,6 @@ import net.minecraftforge.registries.IForgeRegistry.*;
 public class RegistryManager
 {
     public static final RegistryManager ACTIVE = new RegistryManager("ACTIVE");
-    public static final RegistryManager VANILLA = new RegistryManager("VANILLA");
-    public static final RegistryManager FROZEN = new RegistryManager("FROZEN");
 
     BiMap<ResourceLocation, ForgeRegistry<? extends IForgeRegistryEntry<?>>> registries = HashBiMap.create();
     private BiMap<Class<? extends IForgeRegistryEntry<?>>, ResourceLocation> superTypes = HashBiMap.create();
@@ -78,21 +76,10 @@ public class RegistryManager
         return this.registries.inverse().get(reg);
     }
 
-    public <V extends IForgeRegistryEntry<V>> ForgeRegistry<V> getRegistry(ResourceLocation key, RegistryManager other)
-    {
-        if (!this.registries.containsKey(key))
-        {
-            ForgeRegistry<V> ot = other.getRegistry(key);
-            if (ot == null)
-                return null;
-            this.registries.put(key, ot.copy(this));
-            this.superTypes.put(ot.getRegistrySuperType(), key);
-            if (other.persisted.contains(key))
-                this.persisted.add(key);
-        }
-        return getRegistry(key);
-    }
-
+    /**
+     * @deprecated dummy factories are gone; the {@code dummyFactory} parameter is ignored.
+     */
+    @Deprecated
     <V extends IForgeRegistryEntry<V>> ForgeRegistry<V> createRegistry(ResourceLocation name, Class<V> type, ResourceLocation defaultKey,
             @Nullable AddCallback<V> add, @Nullable ClearCallback<V> clear, @Nullable CreateCallback<V> create, @Nullable ValidateCallback<V> validate,
             boolean persisted, boolean allowOverrides, boolean isModifiable, @Nullable DummyFactory<V> dummyFactory, @Nullable MissingFactory<V> missing)
@@ -106,7 +93,7 @@ public class RegistryManager
             FMLLog.log.error("Found existing registry of type {} named {}, you cannot create a new registry ({}) with type {}, as {} has a parent of that type", foundType, superTypes.get(foundType), name, type, type);
             throw new IllegalArgumentException("Duplicate registry parent type found - you can only have one registry for a particular super type");
         }
-        ForgeRegistry<V> reg = new ForgeRegistry<V>(type, defaultKey, create, add, clear, validate, this, allowOverrides, isModifiable, dummyFactory, missing);
+        ForgeRegistry<V> reg = new ForgeRegistry<V>(type, defaultKey, create, add, clear, validate, this, allowOverrides, isModifiable, missing);
         registries.put(name, reg);
         superTypes.put(type, name);
         if (persisted)

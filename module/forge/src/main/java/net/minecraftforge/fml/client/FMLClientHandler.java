@@ -710,7 +710,7 @@ public class FMLClientHandler implements IFMLSidedHandler
     @Override
     public void serverStopped()
     {
-        GameData.revertToFrozen();
+        GameData.restoreLocalNumbering();
     }
 
     @Override
@@ -730,7 +730,7 @@ public class FMLClientHandler implements IFMLSidedHandler
         // ONLY revert a non-local connection
         if (client != null && !client.isLocalChannel())
         {
-            GameData.revertToFrozen();
+            GameData.restoreLocalNumbering();
         }
     }
 

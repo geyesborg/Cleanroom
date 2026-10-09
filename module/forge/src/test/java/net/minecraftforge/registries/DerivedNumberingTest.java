@@ -51,8 +51,8 @@ public class DerivedNumberingTest
         assertEquals(3, Block.getIdFromBlock(Blocks.DIRT));
         assertEquals(1, Potion.getIdFromPotion(MobEffects.SPEED));
 
-        ForgeRegistry<Item> vanillaItems = RegistryManager.VANILLA.getRegistry(GameData.ITEMS);
-        assertEquals(256, vanillaItems.getID(Items.IRON_SHOVEL), "vanilla item id in the VANILLA copy");
+        ForgeRegistry<Item> items = RegistryManager.ACTIVE.getRegistry(GameData.ITEMS);
+        assertEquals(256, items.getVanillaBaseline().get(Items.IRON_SHOVEL.getRegistryName()).intValue(), "vanilla item id in the baseline");
         assertEquals(256, Item.getIdFromItem(Items.IRON_SHOVEL));
     }
 
@@ -72,12 +72,7 @@ public class DerivedNumberingTest
         assertTrue(aaaId < zzzId, "name order decides, not registration order");
 
         // vanilla ids are untouched, and the modded pair takes the first ids vanilla left free
-        ForgeRegistry<Block> vanillaBlocks = RegistryManager.VANILLA.getRegistry(GameData.BLOCKS);
-        Set<Integer> vanillaIds = new HashSet<>();
-        for (Block b : vanillaBlocks)
-        {
-            vanillaIds.add(vanillaBlocks.getID(b));
-        }
+        Set<Integer> vanillaIds = new HashSet<>(blocks.getVanillaBaseline().values());
         assertTrue(!vanillaIds.contains(aaaId) && !vanillaIds.contains(zzzId), "modded blocks must not displace vanilla ids");
         int free = 0;
         while (vanillaIds.contains(free))
