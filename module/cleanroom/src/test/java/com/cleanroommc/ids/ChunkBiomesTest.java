@@ -43,6 +43,7 @@ public class ChunkBiomesTest {
     @BeforeAll
     public static void setup() {
         MinecraftTestHarness.bootstrap();
+        StandIns.load(null);
     }
 
     private static Chunk chunk() {
@@ -334,7 +335,7 @@ public class ChunkBiomesTest {
         ChunkBiomes biomes = chunk.getBiomeIds();
         NBTTagCompound tag = new NBTTagCompound();
         NBTTagList palette = new NBTTagList();
-        palette.appendTag(new NBTTagString("gone_mod:quagmire"));
+        palette.appendTag(new NBTTagString("gone_mod:xyzzy"));
         tag.setTag(ChunkBiomes.PALETTE, palette);
         assertTrue(biomes.readNBT(tag));
         assertEquals(ChunkBiomes.UNSET, biomes.get(0));
@@ -346,7 +347,7 @@ public class ChunkBiomesTest {
         biomes.writeNBT(out);
         NBTTagList outPalette = out.getTagList(ChunkBiomes.PALETTE, 8);
         assertEquals(1, outPalette.tagCount());
-        assertEquals("gone_mod:quagmire", outPalette.getStringTagAt(0));
+        assertEquals("gone_mod:xyzzy", outPalette.getStringTagAt(0));
         biomes.set(0, Biome.getIdForBiome(Biomes.DESERT));
         out = new NBTTagCompound();
         biomes.writeNBT(out);
@@ -354,11 +355,48 @@ public class ChunkBiomesTest {
         boolean marshKept = false;
         boolean desertThere = false;
         for (int i = 0; i < outPalette.tagCount(); i++) {
-            marshKept |= outPalette.getStringTagAt(i).equals("gone_mod:quagmire");
+            marshKept |= outPalette.getStringTagAt(i).equals("gone_mod:xyzzy");
             desertThere |= outPalette.getStringTagAt(i).equals("minecraft:desert");
         }
         assertTrue(marshKept);
         assertTrue(desertThere);
+    }
+
+    /** A retained biome column reads as its vanilla stand-in immediately; the saved name still writes back. */
+    @Test
+    public void missingBiomeReadsAsItsStandIn() {
+        Chunk chunk = chunk();
+        ChunkBiomes biomes = chunk.getBiomeIds();
+        NBTTagCompound tag = new NBTTagCompound();
+        NBTTagList palette = new NBTTagList();
+        palette.appendTag(new NBTTagString("gone_mod:bayou_marsh"));
+        tag.setTag(ChunkBiomes.PALETTE, palette);
+        assertTrue(biomes.readNBT(tag));
+        for (int i = 0; i < 256; i++) {
+            assertEquals(Biome.getIdForBiome(Biomes.SWAMPLAND), biomes.get(i), "column " + i);
+        }
+        NBTTagCompound out = new NBTTagCompound();
+        biomes.writeNBT(out);
+        NBTTagList outPalette = out.getTagList(ChunkBiomes.PALETTE, 8);
+        assertEquals(1, outPalette.tagCount());
+        assertEquals("gone_mod:bayou_marsh", outPalette.getStringTagAt(0));
+    }
+
+    /** No stand-in for an unmatched name: the column stays UNSET and the provider fills it as before. */
+    @Test
+    public void unmatchedBiomeStillFallsBackToTheProvider() {
+        Chunk chunk = new Chunk(desertWorld(), 0, 0);
+        ChunkBiomes biomes = chunk.getBiomeIds();
+        NBTTagCompound tag = new NBTTagCompound();
+        NBTTagList palette = new NBTTagList();
+        palette.appendTag(new NBTTagString("gone_mod:xyzzy"));
+        tag.setTag(ChunkBiomes.PALETTE, palette);
+        assertTrue(biomes.readNBT(tag));
+        assertEquals(ChunkBiomes.UNSET, biomes.get(0));
+        biomes.resolveUnset(chunk);
+        for (int i = 0; i < 256; i++) {
+            assertEquals(Biome.getIdForBiome(Biomes.DESERT), biomes.get(i), "column " + i);
+        }
     }
 
     /** The retained name resolves to a real column once its biome is registered again. */

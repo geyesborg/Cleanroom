@@ -6,6 +6,7 @@ import net.minecraft.block.BlockLog;
 import net.minecraft.block.BlockSlab;
 import net.minecraft.block.BlockStairs;
 import net.minecraft.block.state.IBlockState;
+import net.minecraft.init.Biomes;
 import net.minecraft.init.Blocks;
 import net.minecraft.util.EnumFacing;
 import net.minecraftforge.fml.common.registry.ForgeTestRunner;
@@ -20,6 +21,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 
 @ForgeTestRunner.Isolated
 public class StandInsTest {
@@ -87,6 +89,36 @@ public class StandInsTest {
         assertEquals(Blocks.STONE.getDefaultState(), StandIns.forMissing("gone:gem_ore[]"));
         StandIns.load(null);
         assertEquals(Blocks.LEAVES.getDefaultState().getBlock(), StandIns.forMissing("gone:leaves_0[]").getBlock());
+        Files.deleteIfExists(file);
+    }
+
+    @Test
+    public void defaultBiomeTable() {
+        assertSame(Biomes.ROOFED_FOREST, StandIns.forMissingBiome("biomesoplenty:ominous_woods"));
+        assertSame(Biomes.SWAMPLAND, StandIns.forMissingBiome("biomesoplenty:bayou"));
+        assertSame(Biomes.JUNGLE, StandIns.forMissingBiome("traverse:mini_jungle"));
+        assertSame(Biomes.ICE_PLAINS, StandIns.forMissingBiome("byg:alps"));
+        assertSame(Biomes.MESA, StandIns.forMissingBiome("biomesoplenty:outback"));
+        assertSame(Biomes.FOREST, StandIns.forMissingBiome("biomesoplenty:cherry_blossom_grove"));
+        assertSame(Biomes.PLAINS, StandIns.forMissingBiome("biomesoplenty:orchard"));
+        assertSame(Biomes.TAIGA, StandIns.forMissingBiome("biomesoplenty:redwood_forest"));
+        assertNull(StandIns.forMissingBiome("biomesoplenty:xyzzy"));
+        assertSame(Biomes.OCEAN, StandIns.forMissingBiome("biomesoplenty:coral_reef"));
+        assertSame(Biomes.ICE_PLAINS, StandIns.forMissingBiome("biomesoplenty:snowy_coniferous_forest"));
+        assertSame(Biomes.ROOFED_FOREST, StandIns.forMissingBiome("twilightforest:dark_forest"));
+        // "sea" matches (ocean group) before "dead" (roofed group) — a dead sea is still an ocean column
+        assertSame(Biomes.OCEAN, StandIns.forMissingBiome("byg:dead_sea"));
+    }
+
+    @Test
+    public void biomeConfigOverridesApplyBeforeTheDefaults() throws Exception {
+        Path file = Files.createTempFile("retained_standins", ".cfg");
+        Files.write(file, List.of("biome:ominous = minecraft:swampland", "biome:bayou = none"));
+        StandIns.load(file);
+        assertSame(Biomes.SWAMPLAND, StandIns.forMissingBiome("biomesoplenty:ominous_woods"));
+        assertNull(StandIns.forMissingBiome("biomesoplenty:bayou"));
+        StandIns.load(null);
+        assertSame(Biomes.SWAMPLAND, StandIns.forMissingBiome("biomesoplenty:bayou"));
         Files.deleteIfExists(file);
     }
 }

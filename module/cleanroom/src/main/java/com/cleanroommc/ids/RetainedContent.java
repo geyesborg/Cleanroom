@@ -134,6 +134,20 @@ public final class RetainedContent {
         }
     }
 
+    /** Once per session per biome name, naming the vanilla biome the column reads as meanwhile. */
+    public static void noteMissingBiome(String name, @Nullable net.minecraft.world.biome.Biome standIn, @Nullable ChunkPos pos) {
+        if (LOGGED.add("biome " + name)) {
+            String how = standIn == null ? "reads as the world's provider"
+                    : "reads as " + net.minecraft.world.biome.Biome.REGISTRY.getNameForObject(standIn);
+            if (pos == null) {
+                LOGGER.info("Retaining content of {} (not registered; {}). Reinstall the mod to restore it.", name, how);
+            } else {
+                LOGGER.info("Retaining content of {} (not registered; {}; first seen in chunk {},{}). Reinstall the mod to restore it.",
+                        name, how, pos.x, pos.z);
+            }
+        }
+    }
+
     public static void resetLogged() {
         LOGGED.clear();
     }

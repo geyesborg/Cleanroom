@@ -327,6 +327,13 @@ would erase the name. The chunk remembers which stand-in it put in each cell and
 only while the cell still holds that exact state; a player placing even the same block goes through `set()`
 and wins. Overrides in `config/cleanroom/retained_standins.cfg` (`substring = block[state]` or `= air`). A
 stand-in oak log looks like an oak log; the once-per-block log line is the indicator.
+Biomes get the same treatment: a retained column read as whatever the *current* provider said there (vanilla's
+layout for the seed, unrelated to the terrain), so swamp-shaped land could be tinted desert. `forMissingBiome`
+picks a vanilla biome from substrings of the name (bayou/marsh/fen → Swampland, rainforest → Jungle, alps/
+tundra → Ice Plains, outback → Mesa, ominous/dark/haunted → Roofed Forest, redwood/fir → Taiga, cherry/grove →
+Forest, orchard/meadow → Plains...), falls back to the provider when nothing matches, and `biome:` lines in the
+same config override it (`biome:ominous_woods = minecraft:swampland`, `= none` for the provider). Reading only;
+the name is kept and the real biome returns with the mod.
 World type: vanilla turns an unknown `generatorName` into Default *and saves it*, so a BoP world opened once
 without BoP generates vanilla terrain forever (seen live). `WorldInfo` keeps the unknown name and version and
 writes them back while the type is still Default; choosing a type on purpose (`setTerrainType`) drops them.

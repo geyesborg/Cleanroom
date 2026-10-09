@@ -335,8 +335,12 @@ public final class ChunkBiomes {
                 Biome biome = name.isEmpty() ? null : Biome.REGISTRY.getObject(new ResourceLocation(name));
                 byIndex[i] = biome == null ? UNSET : Biome.getIdForBiome(biome);
                 if (!name.isEmpty() && biome == null) {
-                    missing[i] = name; // a mod's biome, missing now: unset in memory, the name survives
-                    RetainedContent.noteMissing(name, new ChunkPos(chunk.x, chunk.z));
+                    missing[i] = name; // a mod's biome, missing now: reads as its stand-in, the name survives
+                    Biome standIn = StandIns.forMissingBiome(name);
+                    if (standIn != null) {
+                        byIndex[i] = Biome.getIdForBiome(standIn);
+                    }
+                    RetainedContent.noteMissingBiome(name, standIn, new ChunkPos(chunk.x, chunk.z));
                 }
             }
             if (byIndex.length == 0) {
