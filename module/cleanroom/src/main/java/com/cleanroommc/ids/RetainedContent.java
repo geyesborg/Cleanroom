@@ -2,7 +2,10 @@ package com.cleanroommc.ids;
 
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
+import net.minecraft.block.Block;
+import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.EntityList;
+import net.minecraft.init.Blocks;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.ResourceLocation;
@@ -30,12 +33,20 @@ public final class RetainedContent {
     private static final Logger LOGGER = LogManager.getLogger("Cleanroom");
     static final Set<String> LOGGED = ConcurrentHashMap.newKeySet();
 
-    /** A section's cells still holding a name no block answered: storage index (y &lt;&lt; 8 | z &lt;&lt; 4 | x) → the saved state string. */
+    /** A retained cell: the saved state string and the vanilla state it reads as meanwhile (null = air). */
+    public record Retained(String name, @Nullable IBlockState standIn) {
+    }
+
+    /** A section's cells still holding a name no block answered: storage index (y &lt;&lt; 8 | z &lt;&lt; 4 | x) → the saved state string and its stand-in. */
     public static final class Section {
-        private final Int2ObjectMap<String> cells = new Int2ObjectOpenHashMap<>();
+        private final Int2ObjectMap<Retained> cells = new Int2ObjectOpenHashMap<>();
 
         public void retain(int index, String name) {
-            cells.put(index, name);
+            retain(index, name, null);
+        }
+
+        public void retain(int index, String name, @Nullable IBlockState standIn) {
+            cells.put(index, new Retained(name, standIn));
         }
 
         public void clear(int index) {
@@ -44,14 +55,28 @@ public final class RetainedContent {
 
         @Nullable
         public String name(int index) {
-            return cells.get(index);
+            Retained cell = cells.get(index);
+            return cell == null ? null : cell.name();
+        }
+
+        /** The stand-in the cell was retained with, or null when it reads as air (or the cell is not retained). */
+        @Nullable
+        public IBlockState standIn(int index) {
+            Retained cell = cells.get(index);
+            return cell == null ? null : cell.standIn();
+        }
+
+        /** The state the cell reads as while retained: the stand-in, or air. */
+        public IBlockState reads(int index) {
+            IBlockState standIn = standIn(index);
+            return standIn == null ? Blocks.AIR.getDefaultState() : standIn;
         }
 
         public boolean isEmpty() {
             return cells.isEmpty();
         }
 
-        public Int2ObjectMap<String> cells() {
+        public Int2ObjectMap<Retained> cells() {
             return cells;
         }
     }
@@ -87,6 +112,24 @@ public final class RetainedContent {
             } else {
                 LOGGER.info("Retaining content of {} (not registered; first seen in chunk {},{}). Reinstall the mod to restore it.",
                         name, pos.x, pos.z);
+            }
+        }
+    }
+
+    /**
+     * Once per session per block (not per state string — a vine has many connection states), with the
+     * stand-in the retained cells read as in the message.
+     */
+    public static void noteMissingBlock(String stateName, @Nullable IBlockState standIn, @Nullable ChunkPos pos) {
+        int open = stateName.indexOf('[');
+        String block = open < 0 ? stateName : stateName.substring(0, open);
+        if (LOGGED.add("block " + block)) {
+            String how = standIn == null ? "reads as air" : "standing in: " + Block.REGISTRY.getNameForObject(standIn.getBlock());
+            if (pos == null) {
+                LOGGER.info("Retaining content of {} (not registered; {}). Reinstall the mod to restore it.", block, how);
+            } else {
+                LOGGER.info("Retaining content of {} (not registered; {}; first seen in chunk {},{}). Reinstall the mod to restore it.",
+                        block, how, pos.x, pos.z);
             }
         }
     }

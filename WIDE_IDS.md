@@ -317,6 +317,16 @@ verbatim under `CleanroomRetained`. It sits in the slot, moves, stores and drops
 texture, cannot be used, placed or crafted, and stacks only with an identical original. `writeToNBT`
 writes the original compound back (with the live count), so the save is unchanged and the real item returns
 with its damage and NBT when the mod does. One sink, hidden from creative tabs, never a per-name placeholder.
+**Stand-ins.** A retained block reads as air by default, and for a biome mod's ground blocks (`grass[variant=loamy]`,
+`dirt[variant=loamy]`, seen live) that is a hole, so `StandIns` gives a retained cell a vanilla *reading*: by
+substring of the block path, leaves → oak leaves with decay pinned off, log/wood → oak log, planks/stairs/slab/
+fence → oak equivalents, grass → grass block, dirt/mud → dirt, sand, sandstone, gravel, ore/stone/rock → stone;
+same-named properties (`axis`, `facing`, `half`...) carry over. Plants, flowers, vines, saplings, mushrooms and
+fluids stay air on purpose: a vanilla plant pops off at the next update and a fluid flows, both writes that
+would erase the name. The chunk remembers which stand-in it put in each cell and writes the saved name back
+only while the cell still holds that exact state; a player placing even the same block goes through `set()`
+and wins. Overrides in `config/cleanroom/retained_standins.cfg` (`substring = block[state]` or `= air`). A
+stand-in oak log looks like an oak log; the once-per-block log line is the indicator.
 World type: vanilla turns an unknown `generatorName` into Default *and saves it*, so a BoP world opened once
 without BoP generates vanilla terrain forever (seen live). `WorldInfo` keeps the unknown name and version and
 writes them back while the type is still Default; choosing a type on purpose (`setTerrainType`) drops them.

@@ -92,13 +92,19 @@ public final class SectionBlockFormat {
     }
 
     /**
-     * The chunk palette as read: the resolved states (air for an unknown block name, as ever) plus the
-     * original string of every entry whose block name is not registered ({@code null} when all resolved).
+     * The chunk palette as read: the resolved states (a vanilla stand-in for an unknown block name, air when
+     * none applies) plus the original string and stand-in of every unresolved entry ({@code null} when all
+     * resolved).
      */
-    public record ChunkPaletteRead(IBlockState[] states, @Nullable String[] unresolved) {
+    public record ChunkPaletteRead(IBlockState[] states, @Nullable String[] unresolved, @Nullable IBlockState[] standIns) {
         @Nullable
         public String unresolved(int index) {
             return unresolved == null ? null : unresolved[index];
+        }
+
+        @Nullable
+        public IBlockState standIn(int index) {
+            return standIns == null ? null : standIns[index];
         }
     }
 
@@ -176,6 +182,7 @@ public final class SectionBlockFormat {
         NBTTagList list = chunkPaletteTag(chunk);
         IBlockState[] states = new IBlockState[list.tagCount()];
         String[] unresolved = null;
+        IBlockState[] standIns = null;
         for (int i = 0; i < states.length; i++) {
             String s = list.getStringTagAt(i);
             states[i] = parse(s);
@@ -183,11 +190,16 @@ public final class SectionBlockFormat {
             if (!Block.REGISTRY.containsKey(new ResourceLocation(open < 0 ? s : s.substring(0, open)))) {
                 if (unresolved == null) {
                     unresolved = new String[states.length];
+                    standIns = new IBlockState[states.length];
                 }
-                unresolved[i] = s; // a mod's block, missing now: read as air, write back verbatim
+                unresolved[i] = s; // a mod's block, missing now: reads as its stand-in, writes back verbatim
+                standIns[i] = StandIns.forMissing(s);
+                if (standIns[i] != null) {
+                    states[i] = standIns[i];
+                }
             }
         }
-        return new ChunkPaletteRead(states, unresolved);
+        return new ChunkPaletteRead(states, unresolved, standIns);
     }
 
     public static void write(BlockStateContainer data, NBTTagCompound section, ChunkPalette chunkPalette) {
@@ -222,8 +234,8 @@ public final class SectionBlockFormat {
             entries = used.toArray();
         }
         if (retained != null && !retained.isEmpty()) {
-            // A cell that still reads as air keeps its saved name; any real state wins (ExtendedBlockStorage.set
-            // drops the name, so this guards only writes that bypassed it)
+            // A cell that still reads as its stand-in (air when none) keeps its saved name; any other state
+            // wins (ExtendedBlockStorage.set drops the name, so this guards only writes that bypassed it)
             List<Object> grown = new ArrayList<>(Arrays.asList(entries));
             Map<String, Integer> retainedEntries = new java.util.HashMap<>();
             if (values == null) {
@@ -233,14 +245,14 @@ public final class SectionBlockFormat {
                     values[i] = storage.getAt(i);
                 }
             }
-            for (Int2ObjectMap.Entry<String> cell : retained.cells().int2ObjectEntrySet()) {
+            for (Int2ObjectMap.Entry<RetainedContent.Retained> cell : retained.cells().int2ObjectEntrySet()) {
                 int i = cell.getIntKey();
-                if (data.get(i & 15, i >> 8, i >> 4 & 15).getBlock() == Blocks.AIR) {
-                    Integer index = retainedEntries.get(cell.getValue());
+                if (data.get(i & 15, i >> 8, i >> 4 & 15) == retained.reads(i)) {
+                    Integer index = retainedEntries.get(cell.getValue().name());
                     if (index == null) {
                         index = grown.size();
-                        grown.add(cell.getValue());
-                        retainedEntries.put(cell.getValue(), index);
+                        grown.add(cell.getValue().name());
+                        retainedEntries.put(cell.getValue().name(), index);
                     }
                     values[i] = index;
                 }
@@ -274,7 +286,7 @@ public final class SectionBlockFormat {
     }
 
     public static void read(NBTTagCompound section, BlockStateContainer data, IBlockState[] chunkPalette) {
-        read(section, data, new ChunkPaletteRead(chunkPalette, null), null, null);
+        read(section, data, new ChunkPaletteRead(chunkPalette, null, null), null, null);
     }
 
     public static void read(NBTTagCompound section, BlockStateContainer data, ChunkPaletteRead chunkPalette) {
@@ -302,9 +314,9 @@ public final class SectionBlockFormat {
             if (retained != null) {
                 String name = chunkPalette.unresolved(palette[0]);
                 if (name != null) {
-                    RetainedContent.noteMissing(name, pos);
+                    RetainedContent.noteMissingBlock(name, chunkPalette.standIn(palette[0]), pos);
                     for (int i = 0; i < SIZE; i++) {
-                        retained.retain(i, name);
+                        retained.retain(i, name, chunkPalette.standIn(palette[0]));
                     }
                 }
             }
@@ -350,8 +362,8 @@ public final class SectionBlockFormat {
                 int index = local ? storage.getAt(i) : values[i];
                 String name = chunkPalette.unresolved(palette[index]);
                 if (name != null) {
-                    retained.retain(i, name);
-                    RetainedContent.noteMissing(name, pos);
+                    retained.retain(i, name, chunkPalette.standIn(palette[index]));
+                    RetainedContent.noteMissingBlock(name, chunkPalette.standIn(palette[index]), pos);
                 }
             }
         }
