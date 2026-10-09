@@ -81,11 +81,41 @@ public final class RetainedContent {
         }
     }
 
+    /** Level-compound key marking a chunk generated while the world's saved generator type was a missing mod's. */
+    private static final String GENERATED_WITHOUT_WORLD_TYPE = "GeneratedWithoutWorldType";
+
     private final Int2ObjectMap<Section> sections = new Int2ObjectOpenHashMap<>();
     /** Tile-entity compounds that named no registered block entity, kept verbatim. */
     public final List<NBTTagCompound> tileEntities = new ArrayList<>();
     /** Entity compounds that named no registered entity, kept verbatim (riders included). */
     public final List<NBTTagCompound> entities = new ArrayList<>();
+    /**
+     * The world type this chunk's terrain was generated without, when the saved generator name named a
+     * missing mod's type: the terrain is vanilla stand-in, and a later phase can offer to regenerate it.
+     * Other dimensions share the overworld's WorldInfo, so a non-overworld chunk can carry the mark even
+     * though its generator ignored the type; a later prompt filters by dimension.
+     */
+    @Nullable
+    private String generatedWithoutWorldType;
+
+    @Nullable
+    public String getGeneratedWithoutWorldType() {
+        return generatedWithoutWorldType;
+    }
+
+    public void setGeneratedWithoutWorldType(@Nullable String name) {
+        generatedWithoutWorldType = name;
+    }
+
+    public void readLevelTags(NBTTagCompound level) {
+        generatedWithoutWorldType = level.hasKey(GENERATED_WITHOUT_WORLD_TYPE, 8) ? level.getString(GENERATED_WITHOUT_WORLD_TYPE) : null;
+    }
+
+    public void writeLevelTags(NBTTagCompound level) {
+        if (generatedWithoutWorldType != null) {
+            level.setString(GENERATED_WITHOUT_WORLD_TYPE, generatedWithoutWorldType);
+        }
+    }
 
     public Section section(int y) {
         return sections.computeIfAbsent(y, k -> new Section());
@@ -148,8 +178,20 @@ public final class RetainedContent {
         }
     }
 
+    private static boolean standInTerrainNoted;
+
+    /** Once per session, the first chunk generated while the world's real generator type was missing. */
+    public static void noteStandInTerrain(ChunkPos pos, String worldType) {
+        if (!standInTerrainNoted) {
+            standInTerrainNoted = true;
+            LOGGER.info("Chunk {},{} generated while world type {} was missing (vanilla terrain); it can be regenerated when the mod returns.",
+                    pos.x, pos.z, worldType);
+        }
+    }
+
     public static void resetLogged() {
         LOGGED.clear();
+        standInTerrainNoted = false;
     }
 
     /** The compound names no registered tile entity; read failures of known ids are not retainable. */

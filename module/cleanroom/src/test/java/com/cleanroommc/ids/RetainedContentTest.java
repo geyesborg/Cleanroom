@@ -41,6 +41,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -283,7 +284,71 @@ public class RetainedContentTest {
         assertTrue(found, "retained entity must be written back");
     }
 
+        /** The stand-in-terrain mark is stored in the chunk's Level compound and survives a save/load cycle. */
     @Test
+    public void generatedWithoutWorldTypeIsWrittenAndRead() throws Exception {
+        World world = stubWorld();
+        AnvilChunkLoader loader = new AnvilChunkLoader(new File("."), null);
+        Chunk chunk = new Chunk(world, 0, 0);
+        chunk.retained.setGeneratedWithoutWorldType("BIOMESOP");
+
+        Method write = AnvilChunkLoader.class.getDeclaredMethod("writeChunkToNBT", Chunk.class, World.class, NBTTagCompound.class);
+        write.setAccessible(true);
+        NBTTagCompound level = new NBTTagCompound();
+        write.invoke(loader, chunk, world, level);
+        assertEquals("BIOMESOP", level.getString("GeneratedWithoutWorldType"));
+
+        Chunk back = new Chunk(world, 0, 0);
+        back.retained.readLevelTags(level); // the seam readChunkFromNBT calls with the Level compound
+        assertEquals("BIOMESOP", back.retained.getGeneratedWithoutWorldType());
+    }
+
+    @Test
+    public void unmarkedChunksWriteNoGeneratedWithoutWorldTypeTag() throws Exception {
+        World world = stubWorld();
+        AnvilChunkLoader loader = new AnvilChunkLoader(new File("."), null);
+        Chunk chunk = new Chunk(world, 0, 0);
+        Method write = AnvilChunkLoader.class.getDeclaredMethod("writeChunkToNBT", Chunk.class, World.class, NBTTagCompound.class);
+        write.setAccessible(true);
+        NBTTagCompound level = new NBTTagCompound();
+        write.invoke(loader, chunk, world, level);
+        assertFalse(level.hasKey("GeneratedWithoutWorldType"));
+        assertNull(chunk.retained.getGeneratedWithoutWorldType());
+    }
+
+    /** Generation writes keep the mark; a write after terrain population (gameplay) drops it. */
+    @Test
+    public void gameplayWriteClearsTheMark() {
+        World world = stubWorld();
+        Chunk chunk = new Chunk(world, 0, 0);
+        chunk.retained.setGeneratedWithoutWorldType("BIOMESOP");
+        chunk.setTerrainPopulated(false);
+        chunk.setBlockState(new BlockPos(1, 64, 1), Blocks.STONE.getDefaultState());
+        assertEquals("BIOMESOP", chunk.retained.getGeneratedWithoutWorldType(), "a generation write must keep the mark");
+        chunk.setTerrainPopulated(true);
+        chunk.setBlockState(new BlockPos(2, 64, 2), Blocks.DIRT.getDefaultState());
+        assertNull(chunk.retained.getGeneratedWithoutWorldType(), "a post-generation write must drop the mark");
+    }
+    /** Population writes (populating != null while isTerrainPopulated is already set) keep the mark too. */
+    @Test
+    public void populationWritesKeepTheMark() throws Exception {
+        World world = stubWorld();
+        Chunk chunk = new Chunk(world, 0, 0);
+        chunk.retained.setGeneratedWithoutWorldType("BIOMESOP");
+        chunk.setTerrainPopulated(true);
+        Field populating = Chunk.class.getDeclaredField("populating");
+        populating.setAccessible(true);
+        try {
+            populating.set(null, chunk.getPos());
+            chunk.setBlockState(new BlockPos(1, 64, 1), Blocks.STONE.getDefaultState());
+            assertEquals("BIOMESOP", chunk.retained.getGeneratedWithoutWorldType(), "a population write must keep the mark");
+        } finally {
+            populating.set(null, null);
+        }
+        chunk.setBlockState(new BlockPos(2, 64, 2), Blocks.DIRT.getDefaultState());
+        assertNull(chunk.retained.getGeneratedWithoutWorldType(), "a post-population write must drop the mark");
+    }
+@Test
     public void missingNamesAreLoggedOnce() {
         RetainedContent.resetLogged();
         RetainedContent.noteMissing("gone_mod:once", new ChunkPos(0, 0));

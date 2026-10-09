@@ -92,8 +92,16 @@
          }
  
          nbt.setTag("DimensionData", nbttagcompound1);
-@@ -534,6 +547,9 @@
+@@ -532,8 +545,17 @@
+         return this.terrainType;
+     }
  
++    /** Cleanroom: the saved generator name that no mod registered (world is running on DEFAULT), else null. */
++    @Nullable
++    public String getRetainedGeneratorName() {
++        return this.retainedGeneratorName;
++    }
++
      public void setTerrainType(WorldType type) {
          this.terrainType = type;
 +        // Cleanroom: a deliberate choice drops the retained modded generator name
@@ -102,7 +110,7 @@
      }
  
      public String getGeneratorOptions() {
-@@ -658,6 +674,7 @@
+@@ -658,6 +680,7 @@
      }
  
      public void setDifficulty(EnumDifficulty newDifficulty) {
@@ -110,7 +118,7 @@
          this.difficulty = newDifficulty;
      }
  
-@@ -757,16 +774,42 @@
+@@ -757,16 +780,42 @@
              }
          );
      }

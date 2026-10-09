@@ -345,8 +345,15 @@ writes them back while the type is still Default; choosing a type on purpose (`s
 - Put the mod back and every untouched cell and column returns exactly; the edges vanish.
 - **Last write wins per cell.** A chest placed where a log was stays a chest; the rest of the tree returns
   around it. A player action is real; returning content fills in only what nobody touched.
-- Chunks first generated while the mod was out are vanilla for good (there was never a name to keep) and
-  meet returning content at a seam. Forge behaves the same; nothing short of regenerating terrain fixes it.
+- Chunks first generated while the mod was out are vanilla terrain (there was never a name to keep) and meet
+  returning content at a cliff. Forge behaves the same. The only fix is regenerating them, which is safe
+  exactly for the chunks nobody touched: while the world's real type is missing (`WorldInfo` holds the
+  retained generator name), every chunk generated gets a `GeneratedWithoutWorldType` mark naming the type,
+  and any write outside a population window (players, mobs, fire, growth) clears it; `checkLight()` raises
+  `isTerrainPopulated` before the generator plants trees, so population is recognised by Forge's cascading
+  marker, not the flag. The mark is recorded now; the return-time prompt ("N untouched chunks were generated
+  while X was missing; regenerate them?") belongs with the Retain/Remove screen. Marked chunks that were
+  built in are never regenerated, so the only remaining seams are around things players made.
 - So retention is for the *mistake* case (a jar that did not copy, an update that renamed things, a
   dependency that failed), which is also the common case on a long-running world. Someone who means to keep
   playing without the mod picks Remove on the screen. Testers who add and remove mods constantly will see the
