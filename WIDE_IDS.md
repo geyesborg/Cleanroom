@@ -303,6 +303,35 @@ retention file means "no information": load normally, write it on save, never re
 No tooltip, no F3 readout: there is nothing to describe, since a missing block *is* air and a missing item has
 no `Item` to render. The retention file holds the names if anyone later wants to surface them.
 
+**Retention mechanism (built; the Retain/Remove screen is not, so the current default is retain and log once
+per missing name).** `RetainedContent`, one per chunk. Blocks: a palette string whose block is not registered
+reads as air and is recorded per cell; on save a cell that still reads as air writes the string back verbatim
+(the chunk palette is already strings, so the format does not change), and `ExtendedBlockStorage.set` drops
+the name for any cell written in the meantime. Biomes: an unresolved column name is kept beside the live id;
+`resolveUnset` fills the live id from the provider for gameplay without touching the name, `set` clears it,
+and save writes the kept name. Tile entities and entities with an unknown id keep their compound and are
+written back if their position is still air / their UUID is not live. Items are **not yet retained** (an
+`ItemStack` with an unknown item is `EMPTY` everywhere; needs its own design).
+
+**What that means in play**, for a biome mod removed and later restored:
+- Existing terrain keeps its shape; the mod's own blocks (logs, leaves, plants) read as air; the mod's
+  biomes get a vanilla stand-in from the current provider for tint, fog and spawns, with colour edges where
+  the two layouts disagree. Nothing is regenerated or re-decorated.
+- Put the mod back and every untouched cell and column returns exactly; the edges vanish.
+- **Last write wins per cell.** A chest placed where a log was stays a chest; the rest of the tree returns
+  around it. A player action is real; returning content fills in only what nobody touched.
+- Chunks first generated while the mod was out are vanilla for good (there was never a name to keep) and
+  meet returning content at a seam. Forge behaves the same; nothing short of regenerating terrain fixes it.
+- So retention is for the *mistake* case (a jar that did not copy, an update that renamed things, a
+  dependency that failed), which is also the common case on a long-running world. Someone who means to keep
+  playing without the mod picks Remove on the screen. Testers who add and remove mods constantly will see the
+  odd case (a tree restored around a chest) and should read it as the rule working, not a bug.
+
+Vanilla and Forge lose this content outright: `Chunk.getBiome` resolves an unknown column through the current
+provider *and stores it*, and a missing block is saved as air, so chunks touched while a mod is out are
+rewritten for good and re-adding the mod leaves hard-edged patches. Forge's reserved ids only stop a different
+mod's content from appearing in those cells.
+
 Dropped from this design: the "real playtime" heuristic (the screen makes it an explicit choice, so no
 threshold is needed) and the `MissingMappings` alias table (an optimisation so a mod's rename answer is
 recorded once instead of re-asked each load; not required, revisit separately if ever).
@@ -597,7 +626,8 @@ Missing content (separate feature; retention is opt-in via a popup, state in its
 
 - [ ] Missing-entries screen: list what is missing and from which mod; "Retain" / "Remove".
 - [ ] Retention `.dat`: per-registry non-`minecraft` names at last save, mod list; tolerant of absence.
-- [ ] Retention: unresolved names kept in section palettes, item NBT and TE/entity NBT through save.
+- [x] Retention of blocks, biomes, tile entities and entities (`RetainedContent`); default retain + log once.
+- [ ] Retention of items (unknown item in a stack): needs a design; `ItemStack.EMPTY` semantics are everywhere.
 - [ ] Golden-world fixtures: Forge (from `creative`), JEID, NEID; conversion tests against recorded dumps.
 - [ ] Two-sided network test: same mods, client-only mod, different mods.
 - [ ] Mod-shaped tests, one per compatibility-table row.

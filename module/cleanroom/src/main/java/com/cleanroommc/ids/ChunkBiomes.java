@@ -1,11 +1,12 @@
 package com.cleanroommc.ids;
 
-import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
+import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
 import net.minecraft.nbt.NBTTagString;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.ChunkPos;
 import net.minecraft.init.Biomes;
 import net.minecraft.world.World;
 import net.minecraft.world.biome.Biome;
@@ -44,6 +45,8 @@ public final class ChunkBiomes {
 
     private final Chunk chunk;
     private final int[] ids = new int[SIZE];
+    /** Names no biome registry answered on load, kept verbatim to write back ({@code null} until needed). */
+    private String[] retainedNames;
 
     public ChunkBiomes(Chunk chunk) {
         this.chunk = chunk;
@@ -60,6 +63,9 @@ public final class ChunkBiomes {
 
     public void set(int index, int id) {
         ids[index] = id;
+        if (retainedNames != null) {
+            retainedNames[index] = null; // a real write wins over the retained name
+        }
     }
 
     public void set(int x, int z, int id) {
@@ -96,6 +102,7 @@ public final class ChunkBiomes {
             throw new IllegalArgumentException("Chunk biomes need " + SIZE + " ids, got " + newIds.length + ".");
         }
         System.arraycopy(newIds, 0, ids, 0, SIZE);
+        retainedNames = null; // a wholesale set replaces every column, retained names included
     }
 
     /** Old-format bytes, which are full ids (worlds from before the format held at most 256 biomes). */
@@ -124,6 +131,7 @@ public final class ChunkBiomes {
         for (int i = 0; i < SIZE; i++) {
             ids[i] = bytes[i] == (byte) 0xFF ? UNSET : resolve(bytes[i] & 0xFF, i);
         }
+        retainedNames = null;
     }
 
     /** JEID/REID save one full biome id per column; the ids are saved ids, resolved like {@link #setLegacy}. */
@@ -278,18 +286,22 @@ public final class ChunkBiomes {
     }
 
     public void writeNBT(NBTTagCompound chunkTag) {
-        Int2IntOpenHashMap indexOf = new Int2IntOpenHashMap();
+        Object2IntOpenHashMap<String> indexOf = new Object2IntOpenHashMap<>();
         indexOf.defaultReturnValue(-1);
         NBTTagList palette = new NBTTagList();
         byte[] indices = null;
         for (int i = 0; i < SIZE; i++) {
-            int index = indexOf.get(ids[i]);
+            String name = retainedNames == null ? null : retainedNames[i];
+            if (name == null) {
+                Biome biome = ids[i] == UNSET ? null : Biome.getBiome(ids[i]);
+                ResourceLocation biomeName = biome == null ? null : biome.getRegistryName();
+                name = biomeName == null ? "" : biomeName.toString();
+            }
+            int index = indexOf.getInt(name);
             if (index < 0) {
                 index = indexOf.size();
-                indexOf.put(ids[i], index);
-                Biome biome = ids[i] == UNSET ? null : Biome.getBiome(ids[i]);
-                ResourceLocation name = biome == null ? null : biome.getRegistryName();
-                palette.appendTag(new NBTTagString(name == null ? "" : name.toString()));
+                indexOf.put(name, index);
+                palette.appendTag(new NBTTagString(name));
             }
             if (indices == null && index != 0) {
                 indices = new byte[SIZE];
@@ -317,17 +329,27 @@ public final class ChunkBiomes {
                 throw corrupt("has " + palette.tagCount() + " biome palette entries for " + SIZE + " columns");
             }
             int[] byIndex = new int[palette.tagCount()];
+            String[] missing = new String[byIndex.length];
             for (int i = 0; i < byIndex.length; i++) {
                 String name = palette.getStringTagAt(i);
                 Biome biome = name.isEmpty() ? null : Biome.REGISTRY.getObject(new ResourceLocation(name));
                 byIndex[i] = biome == null ? UNSET : Biome.getIdForBiome(biome);
+                if (!name.isEmpty() && biome == null) {
+                    missing[i] = name; // a mod's biome, missing now: unset in memory, the name survives
+                    RetainedContent.noteMissing(name, new ChunkPos(chunk.x, chunk.z));
+                }
             }
             if (byIndex.length == 0) {
                 throw corrupt("has an empty biome palette");
             }
             int[] newIds = new int[SIZE];
+            String[] retained = null;
             if (byIndex.length == 1) {
                 Arrays.fill(newIds, byIndex[0]);
+                if (missing[0] != null) {
+                    retained = new String[SIZE];
+                    Arrays.fill(retained, missing[0]);
+                }
             } else {
                 byte[] indices = chunkTag.getByteArray(INDICES);
                 if (indices.length != SIZE) {
@@ -339,9 +361,16 @@ public final class ChunkBiomes {
                         throw corrupt("refers to biome palette entry " + index + " of " + byIndex.length);
                     }
                     newIds[i] = byIndex[index];
+                    if (missing[index] != null) {
+                        if (retained == null) {
+                            retained = new String[SIZE];
+                        }
+                        retained[i] = missing[index];
+                    }
                 }
             }
             setAll(newIds);
+            retainedNames = retained;
             return true;
         }
         if (chunkTag.hasKey("Biomes")) {

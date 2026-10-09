@@ -1,6 +1,6 @@
 --- original/net/minecraft/world/chunk/Chunk.java
 +++ modified/net/minecraft/world/chunk/Chunk.java
-@@ -41,13 +41,13 @@
+@@ -41,13 +41,15 @@
  import org.apache.logging.log4j.LogManager;
  import org.apache.logging.log4j.Logger;
  
@@ -14,10 +14,12 @@
 -    private final byte[] blockBiomeArray = new byte[256];
 +    /** Cleanroom: full biome ids; there is no byte[] backing array anymore (see getBiomeArray) */
 +    private final com.cleanroommc.ids.ChunkBiomes biomeIds;
++    /** Cleanroom: names no registry resolved when this chunk was read, written back verbatim so the content returns with its mod */
++    public final com.cleanroommc.ids.RetainedContent retained = new com.cleanroommc.ids.RetainedContent();
      /** A map, similar to heightMap, that tracks how far down precipitation can fall. */
      private final int[] precipitationHeightMap = new int[256];
      /** Which columns need their skylightMaps updated. */
-@@ -98,7 +98,8 @@
+@@ -98,7 +100,8 @@
          }
  
          Arrays.fill(this.precipitationHeightMap, -999);
@@ -27,7 +29,7 @@
      }
  
      public Chunk(World worldIn, ChunkPrimer primer, int x, int z) {
-@@ -171,7 +172,8 @@
+@@ -171,7 +174,8 @@
  
                  for (int l = i + 16; l > 0; l--) {
                      IBlockState iblockstate = this.getBlockState(j, l - 1, k);
@@ -37,7 +39,7 @@
                          this.heightMap[k << 4 | j] = l;
                          if (l < this.heightMapMinimum) {
                              this.heightMapMinimum = l;
-@@ -378,11 +380,12 @@
+@@ -378,11 +382,12 @@
      }
  
      public int getBlockLightOpacity(BlockPos pos) {
@@ -52,7 +54,7 @@
      }
  
      public IBlockState getBlockState(BlockPos pos) {
-@@ -430,86 +433,91 @@
+@@ -430,86 +435,91 @@
          int j = pos.getY();
          int k = pos.getZ() & 15;
          int l = k << 4 | i;
@@ -201,7 +203,7 @@
      }
  
      public int getLightFor(EnumSkyBlock type, BlockPos pos) {
-@@ -587,11 +595,13 @@
+@@ -587,11 +597,13 @@
              k = this.entityLists.length - 1;
          }
  
@@ -215,7 +217,7 @@
      }
  
      /** removes entity using its y chunk coordinate as its index */
-@@ -610,6 +620,7 @@
+@@ -610,6 +622,7 @@
          }
  
          this.entityLists[index].remove(entityIn);
@@ -223,7 +225,7 @@
      }
  
      public boolean canSeeSky(BlockPos pos) {
-@@ -623,24 +634,27 @@
+@@ -623,24 +636,27 @@
      private TileEntity createNewTileEntity(BlockPos pos) {
          IBlockState iblockstate = this.getBlockState(pos);
          Block block = iblockstate.getBlock();
@@ -258,7 +260,7 @@
          }
  
          return tileentity;
-@@ -654,9 +668,11 @@
+@@ -654,9 +670,11 @@
      }
  
      public void addTileEntity(BlockPos pos, TileEntity tileEntityIn) {
@@ -271,7 +273,7 @@
              if (this.tileEntities.containsKey(pos)) {
                  this.tileEntities.get(pos).invalidate();
              }
-@@ -681,12 +697,14 @@
+@@ -681,12 +699,14 @@
          this.world.addTileEntities(this.tileEntities.values());
  
          for (ClassInheritanceMultiMap<Entity> classinheritancemultimap : this.entityLists) {
@@ -287,7 +289,7 @@
          this.loaded = false;
  
          for (TileEntity tileentity : this.tileEntities.values()) {
-@@ -696,6 +714,7 @@
+@@ -696,6 +716,7 @@
          for (ClassInheritanceMultiMap<Entity> classinheritancemultimap : this.entityLists) {
              this.world.unloadEntities(classinheritancemultimap);
          }
@@ -295,7 +297,7 @@
      }
  
      /** Sets the isModified flag for this Chunk */
-@@ -705,8 +724,8 @@
+@@ -705,8 +726,8 @@
  
      /** Fills the given list of all entities that intersect within the given bounding box that aren't the passed entity. */
      public void getEntitiesWithinAABBForEntity(@Nullable Entity entityIn, AxisAlignedBB aabb, List<Entity> listToFill, Predicate<? super Entity> filter) {
@@ -306,7 +308,7 @@
          i = MathHelper.clamp(i, 0, this.entityLists.length - 1);
          j = MathHelper.clamp(j, 0, this.entityLists.length - 1);
  
-@@ -739,8 +758,8 @@
+@@ -739,8 +760,8 @@
      public <T extends Entity> void getEntitiesOfTypeWithinAABB(
          Class<? extends T> entityClass, AxisAlignedBB aabb, List<T> listToFill, Predicate<? super T> filter
      ) {
@@ -317,7 +319,7 @@
          i = MathHelper.clamp(i, 0, this.entityLists.length - 1);
          j = MathHelper.clamp(j, 0, this.entityLists.length - 1);
  
-@@ -807,6 +826,9 @@
+@@ -807,6 +828,9 @@
      }
  
      protected void populate(IChunkGenerator generator) {
@@ -327,7 +329,7 @@
          if (this.isTerrainPopulated()) {
              if (generator.generateStructures(this, this.x, this.z)) {
                  this.markDirty();
-@@ -814,8 +836,10 @@
+@@ -814,8 +838,10 @@
          } else {
              this.checkLight();
              generator.populate(this.x, this.z);
@@ -338,7 +340,7 @@
      }
  
      public BlockPos getPrecipitationHeight(BlockPos pos) {
-@@ -856,7 +880,8 @@
+@@ -856,7 +882,8 @@
  
          while (!this.tileEntityPosQueue.isEmpty()) {
              BlockPos blockpos = this.tileEntityPosQueue.poll();
@@ -348,7 +350,7 @@
                  TileEntity tileentity = this.createNewTileEntity(blockpos);
                  this.world.setTileEntity(blockpos, tileentity);
                  this.world.markBlockRangeForRenderUpdate(blockpos, blockpos);
-@@ -912,6 +937,12 @@
+@@ -912,6 +939,12 @@
       */
      @SideOnly(Side.CLIENT)
      public void read(PacketBuffer buf, int availableSections, boolean groundUpContinuous) {
@@ -361,7 +363,7 @@
          boolean flag = this.world.provider.hasSkyLight();
  
          for (int i = 0; i < this.storageArrays.length; i++) {
-@@ -935,7 +966,11 @@
+@@ -935,7 +968,11 @@
          }
  
          if (groundUpContinuous) {
@@ -374,7 +376,7 @@
          }
  
          for (int j = 0; j < this.storageArrays.length; j++) {
-@@ -948,36 +983,58 @@
+@@ -948,36 +985,58 @@
          this.isTerrainPopulated = true;
          this.generateHeightMap();
  
@@ -442,7 +444,7 @@
          }
      }
  
-@@ -1005,10 +1062,11 @@
+@@ -1005,10 +1064,11 @@
                      BlockPos blockpos1 = blockpos.add(k, (j << 4) + i1, l);
                      boolean flag = i1 == 0 || i1 == 15 || k == 0 || k == 15 || l == 0 || l == 15;
                      if (this.storageArrays[j] == NULL_BLOCK_STORAGE && flag
@@ -456,7 +458,7 @@
                                  this.world.checkLight(blockpos2);
                              }
                          }
-@@ -1104,7 +1162,8 @@
+@@ -1104,7 +1164,8 @@
  
          for (int l = blockpos$mutableblockpos.getY(); l > 0; l--) {
              blockpos$mutableblockpos.setPos(blockpos$mutableblockpos.getX(), l, blockpos$mutableblockpos.getZ());
@@ -466,7 +468,7 @@
                  this.world.checkLight(blockpos$mutableblockpos);
              }
          }
-@@ -1134,6 +1193,7 @@
+@@ -1134,6 +1195,7 @@
              LOGGER.warn("Could not set level chunk heightmap, array length is {} instead of {}", newHeightMap.length, this.heightMap.length);
          } else {
              System.arraycopy(newHeightMap, 0, this.heightMap, 0, this.heightMap.length);
@@ -474,7 +476,7 @@
          }
      }
  
-@@ -1190,4 +1250,48 @@
+@@ -1190,4 +1252,48 @@
          QUEUED,
          CHECK;
      }
