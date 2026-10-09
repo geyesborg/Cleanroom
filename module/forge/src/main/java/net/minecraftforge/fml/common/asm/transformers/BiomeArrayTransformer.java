@@ -24,7 +24,6 @@ import java.util.Set;
 
 import net.minecraft.launchwrapper.IClassTransformer;
 import net.minecraftforge.fml.common.FMLLog;
-import net.minecraftforge.fml.common.asm.transformers.deobf.FMLDeobfuscatingRemapper;
 
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
@@ -51,8 +50,10 @@ import org.objectweb.asm.tree.analysis.SourceValue;
  * {@code func_76605_m} (and {@code func_76616_a} for {@code setBiomeArray}, which is not rewritten);
  * dev bytecode calls {@code getBiomeArray}. 1.12.2 SRG names are stable, so both spellings are
  * matched unconditionally - the remapper cannot be asked for the SRG name because it maps the other
- * way (obf -> SRG) and would return an MCP input unchanged. The owner class is still remapped
- * ({@link FMLDeobfuscatingRemapper#map}), since the class name itself is obfuscated in production.
+ * way (obf -> SRG) and would return an MCP input unchanged. The owner is deliberately not checked:
+ * javac emits the receiver's static type, so a {@code Chunk}-subclass-typed call would be missed, and a
+ * false positive on an unrelated {@code getBiomeArray()[B} is harmless ({@code storeByte} falls back
+ * to a plain store for an array that is not a snapshot).
  */
 public class BiomeArrayTransformer implements IClassTransformer
 {
@@ -63,14 +64,11 @@ public class BiomeArrayTransformer implements IClassTransformer
         "com.google.", "com.mojang.", "com.jcraft.", "com.google.common.", "joptsimple.", "org.lwjgl.",
         "paulscode.", "LZMA.", "scala.", "it.unimi.dsi.", "oshi.", "net.java.", "org.luaj."
     };
-    private static final String CHUNK = "net/minecraft/world/chunk/Chunk";
     private static final String GET_ARRAY_MCP = "getBiomeArray";
     private static final String GET_ARRAY_SRG = "func_76605_m"; // setBiomeArray is func_76616_a
     private static final Set<String> GET_ARRAY_NAMES = Set.of(GET_ARRAY_MCP, GET_ARRAY_SRG);
     private static final String GET_ARRAY_DESC = "()[B";
     private static final String OWNER = "com/cleanroommc/ids/ChunkBiomes";
-
-    private String mappedChunk;    // lazily resolved; the remapper may not be populated at construction
 
     @Override
     public byte[] transform(String name, String transformedName, byte[] bytes)
@@ -86,7 +84,6 @@ public class BiomeArrayTransformer implements IClassTransformer
                 return bytes;
             }
         }
-        String targetOwner = getChunkOwner();
         if (!contains(bytes, GET_ARRAY_MCP) && !contains(bytes, GET_ARRAY_SRG))
         {
             return bytes;
@@ -101,7 +98,7 @@ public class BiomeArrayTransformer implements IClassTransformer
             boolean callsGetter = false;
             for (AbstractInsnNode insn : method.instructions.toArray())
             {
-                if (isGetArrayCall(insn, targetOwner))
+                if (isGetArrayCall(insn))
                 {
                     callsGetter = true;
                     break;
@@ -147,7 +144,7 @@ public class BiomeArrayTransformer implements IClassTransformer
                 boolean allTracked = true;
                 for (AbstractInsnNode source : sources)
                 {
-                    if (!isGetArrayCall(source, targetOwner))
+                    if (!isGetArrayCall(source))
                     {
                         allTracked = false;
                     }
@@ -191,7 +188,7 @@ public class BiomeArrayTransformer implements IClassTransformer
         return writer.toByteArray();
     }
 
-    private static boolean isGetArrayCall(AbstractInsnNode insn, String targetOwner)
+    private static boolean isGetArrayCall(AbstractInsnNode insn)
     {
         if (insn.getType() != AbstractInsnNode.METHOD_INSN)
         {
@@ -199,7 +196,7 @@ public class BiomeArrayTransformer implements IClassTransformer
         }
         MethodInsnNode call = (MethodInsnNode)insn;
         return (call.getOpcode() == Opcodes.INVOKEVIRTUAL || call.getOpcode() == Opcodes.INVOKESPECIAL || call.getOpcode() == Opcodes.INVOKEINTERFACE)
-                && targetOwner.equals(call.owner) && GET_ARRAY_DESC.equals(call.desc) && GET_ARRAY_NAMES.contains(call.name);
+                && GET_ARRAY_DESC.equals(call.desc) && GET_ARRAY_NAMES.contains(call.name);
     }
 
     /** The instructions that produced the array operand of a BALOAD or BASTORE. */
@@ -222,16 +219,6 @@ public class BiomeArrayTransformer implements IClassTransformer
             prev = prev.getPrevious();
         }
         return prev;
-    }
-
-    /** The spelling of {@code net/minecraft/world/chunk/Chunk} that the loaded bytecode carries. */
-    private String getChunkOwner()
-    {
-        if (mappedChunk == null)
-        {
-            mappedChunk = FMLDeobfuscatingRemapper.INSTANCE.map(CHUNK);
-        }
-        return mappedChunk;
     }
 
     /** Cheap constant-pool-free scan: does the class file mention the method name at all? */
