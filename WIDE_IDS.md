@@ -317,6 +317,9 @@ verbatim under `CleanroomRetained`. It sits in the slot, moves, stores and drops
 texture, cannot be used, placed or crafted, and stacks only with an identical original. `writeToNBT`
 writes the original compound back (with the live count), so the save is unchanged and the real item returns
 with its damage and NBT when the mod does. One sink, hidden from creative tabs, never a per-name placeholder.
+World type: vanilla turns an unknown `generatorName` into Default *and saves it*, so a BoP world opened once
+without BoP generates vanilla terrain forever (seen live). `WorldInfo` keeps the unknown name and version and
+writes them back while the type is still Default; choosing a type on purpose (`setTerrainType`) drops them.
 
 **What that means in play**, for a biome mod removed and later restored:
 - Existing terrain keeps its shape; the mod's own blocks (logs, leaves, plants) read as air; the mod's
