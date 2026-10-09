@@ -59,7 +59,7 @@
 +            this.itemDamage = 0;
 +            this.stackTagCompound = new NBTTagCompound();
 +            this.stackTagCompound.setTag(com.cleanroommc.ids.MissingItem.RETAINED, compound.copy());
-+            com.cleanroommc.ids.RetainedContent.noteMissing(missingId, null);
++            com.cleanroommc.ids.RetainedContent.noteMissingItem(missingId);
 +        } else {
 +        this.capNBT = compound.hasKey("ForgeCaps") ? compound.getCompoundTag("ForgeCaps") : null;
 +        this.item = compound.hasKey("id", 8) ? Item.getByNameOrId(compound.getString("id")) : Items.AIR; //Forge fix tons of NumberFormatExceptions that are caused by deserializing EMPTY ItemStacks.

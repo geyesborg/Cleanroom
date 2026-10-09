@@ -146,6 +146,13 @@ public final class RetainedContent {
         }
     }
 
+    /** Once per session per item name; the stack is kept as {@code cleanroom:missing_item} carrying its original compound. */
+    public static void noteMissingItem(String name) {
+        if (LOGGED.add("item " + name)) {
+            LOGGER.info("Retaining item {} (not registered; kept as a missing-item stack). Reinstall the mod to restore it.", name);
+        }
+    }
+
     /**
      * Once per session per block (not per state string — a vine has many connection states), with the
      * stand-in the retained cells read as in the message.
