@@ -16,7 +16,17 @@
  import org.lwjgl.opengl.Display;
  
  @SideOnly(Side.CLIENT)
-@@ -218,16 +220,34 @@
+@@ -164,7 +166,8 @@
+             if (!this.mc.world.isBlockLoaded(blockpos) || blockpos.getY() < 0 || blockpos.getY() >= 256) {
+                 list.add("Outside of world...");
+             } else if (!chunk.isEmpty()) {
+-                list.add("Biome: " + chunk.getBiome(blockpos, this.mc.world.getBiomeProvider()).getBiomeName());
++                net.minecraft.world.biome.Biome biome = chunk.getBiome(blockpos, this.mc.world.getBiomeProvider());
++                list.add("Biome: " + biomeOwner(biome) + biome.getBiomeName()); // Cleanroom: which mod the biome comes from
+                 list.add(
+                     "Light: "
+                         + chunk.getLightSubtracted(blockpos, 0)
+@@ -218,16 +221,34 @@
          long k = Runtime.getRuntime().freeMemory();
          long l = j - k;
          List<String> list = Lists.newArrayList(
@@ -61,3 +71,18 @@
          if (this.mc.isReducedDebug()) {
              return list;
          }
+@@ -321,4 +342,14 @@
+     private static long bytesToMb(long bytes) {
+         return bytes / 1024L / 1024L;
+     }
++
++    /** "Biomes O' Plenty: " for a biomesoplenty biome, "Minecraft: " for vanilla, the namespace itself for an unknown mod. */
++    private static String biomeOwner(net.minecraft.world.biome.Biome biome) {
++        net.minecraft.util.ResourceLocation name = biome.getRegistryName();
++        if (name == null) {
++            return "";
++        }
++        net.minecraftforge.fml.common.ModContainer mod = net.minecraftforge.fml.common.Loader.instance().getIndexedModList().get(name.getNamespace());
++        return (mod != null ? mod.getName() : name.getNamespace()) + ": ";
++    }
+ }
