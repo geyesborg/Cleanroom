@@ -21,11 +21,12 @@
          }
  
          return i;
-@@ -143,7 +148,10 @@
+@@ -143,7 +148,11 @@
          }
  
          if (this.isFullChunk()) {
 -            i += chunkIn.getBiomeArray().length;
++            chunkIn.getBiomeIds().resolveUnset(chunkIn); // Cleanroom: the wire must never carry an unset column; vanilla's byte array was always filled by the generator
 +            this.biomeIds = chunkIn.getBiomeIds().copy(); // one copy: a biome changing in between can't change the size
 +            for (int id : this.biomeIds) { // Cleanroom: see extractChunkData
 +                i += PacketBuffer.getVarIntSize(id + 1);

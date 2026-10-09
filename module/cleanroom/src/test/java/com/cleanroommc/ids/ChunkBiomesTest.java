@@ -5,14 +5,32 @@ import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagInt;
 import net.minecraft.nbt.NBTTagList;
 import net.minecraft.nbt.NBTTagString;
+import net.minecraft.network.play.server.SPacketChunkData;
+import net.minecraft.profiler.Profiler;
 import net.minecraft.util.ResourceLocation;
+import net.minecraft.world.DimensionType;
+import net.minecraft.world.GameType;
+import net.minecraft.world.World;
+import net.minecraft.world.WorldProvider;
+import net.minecraft.world.WorldSettings;
+import net.minecraft.world.WorldType;
 import net.minecraft.world.biome.Biome;
+import net.minecraft.world.biome.BiomeProvider;
+import net.minecraft.world.biome.BiomeProviderSingle;
 import net.minecraft.world.chunk.Chunk;
+import net.minecraft.world.chunk.IChunkProvider;
+import net.minecraft.world.chunk.storage.IChunkLoader;
+import net.minecraft.world.gen.structure.template.TemplateManager;
+import net.minecraft.world.storage.IPlayerFileData;
+import net.minecraft.world.storage.ISaveHandler;
+import net.minecraft.world.storage.WorldInfo;
 import net.minecraftforge.fml.common.registry.ForgeTestRunner;
 import net.minecraftforge.fml.common.registry.MinecraftTestHarness;
 import net.minecraftforge.fml.common.registry.ForgeRegistries;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+
+import java.io.File;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -266,5 +284,46 @@ public class ChunkBiomesTest {
         assertEquals(Biome.getIdForBiome(Biomes.BEACH), old.getBiomeIds().get(0));
         assertEquals(ChunkBiomes.UNSET, old.getBiomeIds().get(3));
         assertFalse(chunk().getBiomeIds().readNBT(new NBTTagCompound()));
+    }
+
+    private static World desertWorld() {
+        ISaveHandler save = new ISaveHandler() {
+            @Override public WorldInfo loadWorldInfo() { return null; }
+            @Override public void checkSessionLock() { }
+            @Override public IChunkLoader getChunkLoader(WorldProvider provider) { return null; }
+            @Override public void saveWorldInfoWithPlayer(WorldInfo info, NBTTagCompound tag) { }
+            @Override public void saveWorldInfo(WorldInfo info) { }
+            @Override public IPlayerFileData getPlayerNBTManager() { return null; }
+            @Override public void flush() { }
+            @Override public File getWorldDirectory() { return null; }
+            @Override public File getMapFileFromName(String name) { return null; }
+            @Override public TemplateManager getStructureTemplateManager() { return null; }
+        };
+        WorldProvider provider = new WorldProvider() {
+            @Override public DimensionType getDimensionType() { return DimensionType.OVERWORLD; }
+            @Override public BiomeProvider getBiomeProvider() { return new BiomeProviderSingle(Biomes.DESERT); }
+        };
+        WorldInfo info = new WorldInfo(new WorldSettings(0L, GameType.CREATIVE, false, false, WorldType.DEFAULT), "test");
+        return new World(save, info, provider, new Profiler(), true) {
+            @Override protected IChunkProvider createChunkProvider() { return null; }
+            @Override protected boolean isChunkLoaded(int x, int z, boolean allowEmpty) { return false; }
+        };
+    }
+
+    /** A packet's full-chunk capture fills UNSET columns from the world so the wire never carries 0. */
+    @Test
+    public void unsetColumnsAreResolvedBeforeTheChunkIsSent() {
+        Biome marsh = new Biome(new Biome.BiomeProperties("resolve_me")) {};
+        marsh.setRegistryName(new ResourceLocation("wideids_test", "resolve_me"));
+        ForgeRegistries.BIOMES.register(marsh);
+        Chunk chunk = new Chunk(desertWorld(), 1, 1);
+        ChunkBiomes biomes = chunk.getBiomeIds();
+        biomes.set(1, Biome.getIdForBiome(marsh));
+        new SPacketChunkData(chunk, 0xFFFF);
+        for (int i = 0; i < 256; i++) {
+            assertTrue(biomes.get(i) != ChunkBiomes.UNSET, "column " + i + " still UNSET after packet capture");
+        }
+        assertEquals(Biome.getIdForBiome(Biomes.DESERT), biomes.get(0));
+        assertEquals(Biome.getIdForBiome(marsh), biomes.get(1));
     }
 }

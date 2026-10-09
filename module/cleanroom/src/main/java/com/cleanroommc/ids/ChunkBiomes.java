@@ -6,8 +6,10 @@ import net.minecraft.nbt.NBTTagList;
 import net.minecraft.nbt.NBTTagString;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.init.Biomes;
 import net.minecraft.world.World;
 import net.minecraft.world.biome.Biome;
+import net.minecraft.world.biome.BiomeProvider;
 import net.minecraft.world.chunk.Chunk;
 import net.minecraftforge.registries.GameData;
 import org.apache.logging.log4j.LogManager;
@@ -66,6 +68,27 @@ public final class ChunkBiomes {
 
     public int[] copy() {
         return ids.clone();
+    }
+
+    /**
+     * Fills every UNSET column by asking the chunk's world generator (its biome provider) what belongs
+     * there. Called by {@code SPacketChunkData} before it copies this array: vanilla's wire format never
+     * carried an unset column, so neither may the varint encoding. Does nothing on unit-test chunks
+     * (world null).
+     */
+    public void resolveUnset(Chunk chunk) {
+        World world = chunk.getWorld();
+        if (world == null) {
+            return;
+        }
+        BiomeProvider provider = world.getBiomeProvider();
+        for (int i = 0; i < SIZE; i++) {
+            if (ids[i] == UNSET) {
+                int x = i & 15;
+                int z = i >> 4;
+                ids[i] = Biome.getIdForBiome(provider.getBiome(new BlockPos((chunk.x << 4) | x, 0, (chunk.z << 4) | z), Biomes.PLAINS));
+            }
+        }
     }
 
     public void setAll(int[] newIds) {
