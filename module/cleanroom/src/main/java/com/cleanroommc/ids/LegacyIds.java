@@ -5,6 +5,8 @@ import java.util.Map;
 
 import javax.annotation.Nullable;
 
+import org.apache.logging.log4j.LogManager;
+
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import net.minecraft.block.Block;
@@ -49,11 +51,15 @@ public final class LegacyIds {
     }
 
     public static void install(NBTTagCompound registriesTag) {
-        current = new LegacyIds(registriesTag);
+        LegacyIds table = new LegacyIds(registriesTag);
+        current = table;
+        int entries = table.tables.values().stream().mapToInt(Int2ObjectMap::size).sum();
+        LogManager.getLogger("Cleanroom").info("LegacyIds: saved id table installed for {} registries ({} entries)", table.tables.size(), entries);
     }
 
     public static void clear() {
         current = null;
+        LogManager.getLogger("Cleanroom").debug("LegacyIds: saved id table cleared");
     }
 
     @Nullable

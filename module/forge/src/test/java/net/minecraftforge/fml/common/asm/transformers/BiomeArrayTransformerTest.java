@@ -14,9 +14,19 @@ import net.minecraftforge.registries.GameData;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.ClassVisitor;
+import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.MethodVisitor;
+import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.tree.AbstractInsnNode;
+import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.MethodInsnNode;
+import org.objectweb.asm.tree.MethodNode;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -201,5 +211,94 @@ public class BiomeArrayTransformerTest
         byte[] other = new byte[4];
         fixture.getMethod("unrelated", byte[].class, int.class).invoke(null, other, 0x41);
         assertEquals((byte)0x41, other[0]);
+    }
+
+    /** What a mod jar looks like: every getBiomeArray()[B call spelled with the SRG name. */
+    private static byte[] renameToSrg(byte[] classBytes) throws Exception
+    {
+        ClassWriter writer = new ClassWriter(0);
+        new ClassReader(classBytes).accept(new ClassVisitor(Opcodes.ASM9, writer)
+        {
+            @Override
+            public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions)
+            {
+                return new MethodVisitor(Opcodes.ASM9, super.visitMethod(access, name, descriptor, signature, exceptions))
+                {
+                    @Override
+                    public void visitMethodInsn(int opcode, String owner, String name, String descriptor, boolean isInterface)
+                    {
+                        if ("net/minecraft/world/chunk/Chunk".equals(owner) && "getBiomeArray".equals(name) && "()[B".equals(descriptor))
+                        {
+                            name = "func_76605_m";
+                        }
+                        super.visitMethodInsn(opcode, owner, name, descriptor, isInterface);
+                    }
+                };
+            }
+        }, 0);
+        return writer.toByteArray();
+    }
+
+    private static MethodNode method(ClassNode node, String name)
+    {
+        for (MethodNode method : node.methods)
+        {
+            if (method.name.equals(name))
+            {
+                return method;
+            }
+        }
+        throw new AssertionError("no method " + name);
+    }
+
+    private static int countOpcode(MethodNode method, int opcode)
+    {
+        int count = 0;
+        for (AbstractInsnNode insn : method.instructions)
+        {
+            if (insn.getOpcode() == opcode)
+            {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    @Test
+    public void srgNamedCallsAreRedirectedToo() throws Exception
+    {
+        // The call cannot be invoked (Chunk has no func_76605_m in dev), so the assertions are structural.
+        byte[] renamed = renameToSrg(classBytes(FIXTURE));
+        ClassNode renamedNode = new ClassNode();
+        new ClassReader(renamed).accept(renamedNode, 0);
+        assertTrue(countOpcode(method(renamedNode, "fill"), Opcodes.BASTORE) > 0, "the renamed fixture still has plain BASTOREs");
+
+        byte[] transformed = new BiomeArrayTransformer().transform(FIXTURE, FIXTURE, renamed);
+        assertNotSame(renamed, transformed, "the SRG spelling went through the transform");
+        ClassNode transformedNode = new ClassNode();
+        new ClassReader(transformed).accept(transformedNode, 0);
+        MethodNode fill = method(transformedNode, "fill");
+        assertEquals(0, countOpcode(fill, Opcodes.BASTORE), "every BASTORE was redirected");
+        assertEquals(0, countOpcode(fill, Opcodes.I2B), "the I2B before each store was dropped");
+        boolean storeByte = false;
+        for (AbstractInsnNode insn : fill.instructions)
+        {
+            if (insn.getOpcode() == Opcodes.INVOKESTATIC && insn instanceof MethodInsnNode
+                    && "com/cleanroommc/ids/ChunkBiomes".equals(((MethodInsnNode)insn).owner)
+                    && "storeByte".equals(((MethodInsnNode)insn).name))
+            {
+                storeByte = true;
+            }
+        }
+        assertTrue(storeByte, "fill stores through ChunkBiomes.storeByte");
+    }
+
+    @Test
+    public void quickRejectSeesSrgName() throws Exception
+    {
+        // A class carrying only the SRG spelling is transformed, i.e. the cheap scan saw the name.
+        byte[] renamed = renameToSrg(classBytes(FIXTURE));
+        byte[] transformed = new BiomeArrayTransformer().transform(FIXTURE, FIXTURE, renamed);
+        assertNotSame(renamed, transformed);
     }
 }
