@@ -79,11 +79,15 @@ public final class RetainedContent {
         }
     }
 
-    /** Once per session per name, so a removed mod logs one line instead of one per chunk. */
+    /** Once per session per name, so a removed mod logs one line instead of one per chunk or stack. */
     public static void noteMissing(String name, @Nullable ChunkPos pos) {
         if (LOGGED.add(name)) {
-            LOGGER.info("Retaining content of {} (not registered; first seen in chunk {},{}). Reinstall the mod to restore it.",
-                    name, pos == null ? "?" : pos.x, pos == null ? "?" : pos.z);
+            if (pos == null) {
+                LOGGER.info("Retaining content of {} (not registered). Reinstall the mod to restore it.", name);
+            } else {
+                LOGGER.info("Retaining content of {} (not registered; first seen in chunk {},{}). Reinstall the mod to restore it.",
+                        name, pos.x, pos.z);
+            }
         }
     }
 

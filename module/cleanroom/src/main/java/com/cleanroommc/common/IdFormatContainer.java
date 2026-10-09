@@ -58,6 +58,7 @@ public class IdFormatContainer extends DummyModContainer implements WorldAccessC
     @Subscribe
     public void construct(FMLConstructionEvent event) {
         NetworkRegistry.INSTANCE.register(this, this.getClass(), null, event.getASMHarvestedData());
+        net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(com.cleanroommc.ids.MissingItem.class); // missing-content retention (its Register<Item> handler sets MissingItem.INSTANCE)
     }
 
     @NetworkCheckHandler

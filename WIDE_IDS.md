@@ -310,8 +310,13 @@ reads as air and is recorded per cell; on save a cell that still reads as air wr
 the name for any cell written in the meantime. Biomes: an unresolved column name is kept beside the live id;
 `resolveUnset` fills the live id from the provider for gameplay without touching the name, `set` clears it,
 and save writes the kept name. Tile entities and entities with an unknown id keep their compound and are
-written back if their position is still air / their UUID is not live. Items are **not yet retained** (an
-`ItemStack` with an unknown item is `EMPTY` everywhere; needs its own design).
+written back if their position is still air / their UUID is not live. Items: an `ItemStack` whose item is
+not registered would be `EMPTY`, and every slot, hopper and shift-click treats `EMPTY` as nothing, so an
+unknown stack becomes **one internal item, `cleanroom:missing_item`**, carrying the original compound
+verbatim under `CleanroomRetained`. It sits in the slot, moves, stores and drops, renders as the missing
+texture, cannot be used, placed or crafted, and stacks only with an identical original. `writeToNBT`
+writes the original compound back (with the live count), so the save is unchanged and the real item returns
+with its damage and NBT when the mod does. One sink, hidden from creative tabs, never a per-name placeholder.
 
 **What that means in play**, for a biome mod removed and later restored:
 - Existing terrain keeps its shape; the mod's own blocks (logs, leaves, plants) read as air; the mod's
@@ -627,7 +632,7 @@ Missing content (separate feature; retention is opt-in via a popup, state in its
 - [ ] Missing-entries screen: list what is missing and from which mod; "Retain" / "Remove".
 - [ ] Retention `.dat`: per-registry non-`minecraft` names at last save, mod list; tolerant of absence.
 - [x] Retention of blocks, biomes, tile entities and entities (`RetainedContent`); default retain + log once.
-- [ ] Retention of items (unknown item in a stack): needs a design; `ItemStack.EMPTY` semantics are everywhere.
+- [x] Retention of items: `cleanroom:missing_item` carries the original compound; written back verbatim.
 - [ ] Golden-world fixtures: Forge (from `creative`), JEID, NEID; conversion tests against recorded dumps.
 - [ ] Two-sided network test: same mods, client-only mod, different mods.
 - [ ] Mod-shaped tests, one per compatibility-table row.
