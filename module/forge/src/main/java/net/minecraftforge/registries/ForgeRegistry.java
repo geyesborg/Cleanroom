@@ -789,6 +789,15 @@ public class ForgeRegistry<V extends IForgeRegistryEntry<V>> implements IForgeRe
     }
 
 
+    /**
+     * @deprecated ids are derived at freeze; there is nothing to load. Kept so old mods still link.
+     */
+    @Deprecated
+    public void loadIds(Map<ResourceLocation, Integer> ids, Map<ResourceLocation, String> overrides, Map<ResourceLocation, Integer> missing, Map<ResourceLocation, Integer[]> remapped, ForgeRegistry<V> old, ResourceLocation name)
+    {
+    }
+
+    //Public for tests
     //Public for tests
     public Snapshot makeSnapshot()
     {

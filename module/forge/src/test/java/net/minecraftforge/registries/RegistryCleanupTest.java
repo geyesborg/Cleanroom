@@ -173,6 +173,26 @@ public class RegistryCleanupTest
     }
 
     @Test
+    public void vanillaManagerHoldsOnlyVanillaEntries()
+    {
+        assertSame(RegistryManager.ACTIVE, RegistryManager.FROZEN);
+
+        ForgeRegistry<Block> vanillaBlocks = RegistryManager.VANILLA.getRegistry(GameData.BLOCKS);
+        assertNotNull(vanillaBlocks, "VANILLA has a block registry");
+        assertSame(Blocks.STONE, vanillaBlocks.getValue(new ResourceLocation("minecraft:stone")));
+        assertEquals(1, vanillaBlocks.getID(Blocks.STONE), "stone keeps its vanilla number");
+
+        ForgeRegistry<Block> activeBlocks = RegistryManager.ACTIVE.getRegistry(GameData.BLOCKS);
+        activeBlocks.unfreeze();
+        Block modded = new Block(net.minecraft.block.material.Material.ROCK).setRegistryName("wideids_test", "not_vanilla");
+        activeBlocks.register(modded);
+        activeBlocks.freeze();
+
+        assertFalse(vanillaBlocks.containsKey(modded.getRegistryName()), "VANILLA holds only baseline entries");
+        assertTrue(activeBlocks.containsKey(modded.getRegistryName()));
+    }
+
+    @Test
     public void recipeReloadKeepsCodeRecipesOnly()
     {
         ForgeRegistry<IRecipe> reg = (ForgeRegistry<IRecipe>)ForgeRegistries.RECIPES;

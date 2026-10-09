@@ -38,6 +38,17 @@ import net.minecraftforge.registries.IForgeRegistry.*;
 public class RegistryManager
 {
     public static final RegistryManager ACTIVE = new RegistryManager("ACTIVE");
+    /**
+     * The vanilla-content snapshot taken by {@link GameData#vanillaSnapshot()}. Kept for mods that read
+     * the field to ask "is this entry vanilla"; it holds only baseline names and ids.
+     */
+    public static final RegistryManager VANILLA = new RegistryManager("VANILLA");
+    /**
+     * @deprecated ids never change after freeze, so the frozen state IS the active state. Kept for mods
+     * that read the field; it is {@link #ACTIVE}.
+     */
+    @Deprecated
+    public static final RegistryManager FROZEN = ACTIVE;
 
     BiMap<ResourceLocation, ForgeRegistry<? extends IForgeRegistryEntry<?>>> registries = HashBiMap.create();
     private BiMap<Class<? extends IForgeRegistryEntry<?>>, ResourceLocation> superTypes = HashBiMap.create();
@@ -74,6 +85,21 @@ public class RegistryManager
     public <V extends IForgeRegistryEntry<V>> ResourceLocation getName(IForgeRegistry<V> reg)
     {
         return this.registries.inverse().get(reg);
+    }
+
+    public <V extends IForgeRegistryEntry<V>> ForgeRegistry<V> getRegistry(ResourceLocation key, RegistryManager other)
+    {
+        if (!this.registries.containsKey(key))
+        {
+            ForgeRegistry<V> ot = other.getRegistry(key);
+            if (ot == null)
+                return null;
+            this.registries.put(key, ot.copy(this));
+            this.superTypes.put(ot.getRegistrySuperType(), key);
+            if (other.persisted.contains(key))
+                this.persisted.add(key);
+        }
+        return getRegistry(key);
     }
 
     /**

@@ -41,6 +41,7 @@ import net.minecraft.util.registry.RegistryNamespaced;
 import net.minecraft.util.registry.RegistryNamespacedDefaultedByKey;
 import net.minecraft.world.biome.Biome;
 import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.common.crafting.CraftingHelper;
 import net.minecraftforge.event.RegistryEvent;
 import net.minecraftforge.event.RegistryEvent.MissingMappings;
 import net.minecraftforge.fml.common.FMLCommonHandler;
@@ -210,11 +211,27 @@ public class GameData
             for (Object name : reg.getKeys())
                 baseline.put((ResourceLocation) name, reg.getIDRaw((ResourceLocation) name));
             reg.captureVanillaBaseline(baseline);
+            copyVanillaEntries(r.getKey(), reg, baseline);
         }
+        RegistryManager.VANILLA.registries.forEach(LOCK_VANILLA);
         RegistryManager.ACTIVE.registries.forEach(LOCK_VANILLA);
         FMLLog.log.debug("Vanilla baseline captured");
     }
 
+
+    /**
+     * Builds the {@link RegistryManager#VANILLA} copy of one registry: only the baseline (vanilla)
+     * names, on their baseline numbers, frozen.
+     */
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    private static <T extends IForgeRegistryEntry<T>> void copyVanillaEntries(ResourceLocation name, ForgeRegistry<T> active, Map<ResourceLocation, Integer> baseline)
+    {
+        ForgeRegistry<T> vanilla = RegistryManager.VANILLA.getRegistry(name, RegistryManager.ACTIVE);
+        for (Map.Entry<ResourceLocation, Integer> e : baseline.entrySet())
+            vanilla.add(e.getValue().intValue(), active.getValue(e.getKey()));
+        vanilla.captureVanillaBaseline(baseline);
+        vanilla.freeze();
+    }
     @SuppressWarnings({ "rawtypes", "unchecked" })
     public static void freezeData()
     {
@@ -576,6 +593,40 @@ public class GameData
      * Removes every recipe not in {@code codeRecipes} — i.e. everything a previous JSON load added —
      * then re-freezes. Numbering is re-derived on freeze; there is no frozen copy to revert to.
      */
+    /**
+     * @deprecated replaced by {@link #restoreLocalNumbering()}; ids are derived, so this re-derives
+     * them rather than restoring a frozen copy. Kept so old mods still link.
+     */
+    @Deprecated
+    public static void revertToFrozen()
+    {
+        restoreLocalNumbering();
+    }
+
+    /**
+     * @deprecated there is no frozen copy to revert to; only the recipe revert still exists, as
+     * {@link CraftingHelper#revertToCodeRecipes()}. Other registries' contents never change. Kept so
+     * old mods still link.
+     */
+    @Deprecated
+    public static void revert(RegistryManager state, ResourceLocation registry, boolean lock)
+    {
+        if (RECIPES.equals(registry))
+            CraftingHelper.revertToCodeRecipes();
+        else
+            FMLLog.log.warn("GameData.revert({}, {}) is a no-op: contents are never replaced", state.getName(), registry);
+    }
+
+    /**
+     * @deprecated replaced by {@link #loadWorldSnapshot(Map)}; snapshots only fire MissingMappings and
+     * install aliases now — nothing is injected or renumbered. Kept so old mods still link.
+     */
+    @Deprecated
+    public static Multimap<ResourceLocation, ResourceLocation> injectSnapshot(Map<ResourceLocation, ForgeRegistry.Snapshot> snapshot, boolean injectFrozenData, boolean isLocalWorld)
+    {
+        return loadWorldSnapshot(snapshot);
+    }
+
     public static void revertRecipesToCode(Set<ResourceLocation> codeRecipes)
     {
         ForgeRegistry<IRecipe> reg = RegistryManager.ACTIVE.getRegistry(RECIPES);
