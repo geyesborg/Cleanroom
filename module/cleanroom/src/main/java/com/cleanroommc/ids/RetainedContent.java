@@ -16,6 +16,7 @@ import org.apache.logging.log4j.Logger;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -196,6 +197,40 @@ public final class RetainedContent {
         }
     }
 
+
+    /** Namespaces the user chose to drop at this world's Retain/Remove prompt (the {@code Decisions} read "remove"). */
+    private static final Set<String> REMOVED_NAMESPACES = ConcurrentHashMap.newKeySet();
+
+    /** Per-world Retain/Remove answers keyed by namespace, written back to {@code cleanroom_retained.dat} on save. */
+    private static final Map<String, String> RETENTION_DECISIONS = new ConcurrentHashMap<>();
+
+    /** True while this session drops {@code name}'s namespace on read instead of retaining it. Accepts a raw name or a state string ({@code mod:block[props]}). */
+    public static boolean isRemoved(String name) {
+        int colon = name.indexOf(':');
+        return colon > 0 && REMOVED_NAMESPACES.contains(name.substring(0, colon));
+    }
+
+    public static Set<String> removedNamespaces() {
+        return REMOVED_NAMESPACES;
+    }
+
+    public static Map<String, String> retentionDecisions() {
+        return RETENTION_DECISIONS;
+    }
+
+    /** Once per session per name: the user's "Remove" answer deleting this content as it is read. */
+    public static void noteRemoved(String name) {
+        if (LOGGED.add("removed " + name)) {
+            LOGGER.info("Removing content of {} (chosen on load)", name);
+        }
+    }
+
+    /** World closed: the next world this session opens gets its own file, decisions and per-name logging. */
+    public static void clearWorldState() {
+        REMOVED_NAMESPACES.clear();
+        RETENTION_DECISIONS.clear();
+        resetLogged();
+    }
     public static void resetLogged() {
         LOGGED.clear();
         standInTerrainNoted = false;

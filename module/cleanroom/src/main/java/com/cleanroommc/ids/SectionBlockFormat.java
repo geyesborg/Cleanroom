@@ -188,6 +188,10 @@ public final class SectionBlockFormat {
             states[i] = parse(s);
             int open = s.indexOf('[');
             if (!Block.REGISTRY.containsKey(new ResourceLocation(open < 0 ? s : s.substring(0, open)))) {
+                if (RetainedContent.isRemoved(s)) {
+                    RetainedContent.noteRemoved(s); // a namespace the user chose to drop: air, no stand-in, no retained name
+                    continue;
+                }
                 if (unresolved == null) {
                     unresolved = new String[states.length];
                     standIns = new IBlockState[states.length];

@@ -544,7 +544,11 @@ public class FMLClientHandler implements IFMLSidedHandler
     @Override
     public void queryUser(StartupQuery query) throws InterruptedException
     {
-        if (query.getResult() == null)
+        if (query.isChoice())
+        {
+            client.displayGuiScreen(new GuiRetainRemove(query));
+        }
+        else if (query.getResult() == null)
         {
             client.displayGuiScreen(new GuiNotification(query));
         }

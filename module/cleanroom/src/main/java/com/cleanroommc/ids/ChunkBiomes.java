@@ -335,6 +335,10 @@ public final class ChunkBiomes {
                 Biome biome = name.isEmpty() ? null : Biome.REGISTRY.getObject(new ResourceLocation(name));
                 byIndex[i] = biome == null ? UNSET : Biome.getIdForBiome(biome);
                 if (!name.isEmpty() && biome == null) {
+                    if (RetainedContent.isRemoved(name)) {
+                        RetainedContent.noteRemoved(name); // removed: the column resolves through the provider and the name is gone
+                        continue;
+                    }
                     missing[i] = name; // a mod's biome, missing now: reads as its stand-in, the name survives
                     Biome standIn = StandIns.forMissingBiome(name);
                     if (standIn != null) {

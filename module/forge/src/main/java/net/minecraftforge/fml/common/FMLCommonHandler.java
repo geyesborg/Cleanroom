@@ -521,6 +521,7 @@ public class FMLCommonHandler
     public void handleServerStopped()
     {
         LegacyIds.clear(); // the next world opened in this session may have a different table, or none
+        com.cleanroommc.ids.RetainedContent.clearWorldState(); // per-world Retain/Remove decisions and per-name logging reset with it
         sidedDelegate.serverStopped();
         MinecraftServer server = getMinecraftServerInstance();
         Loader.instance().serverStopped();

@@ -666,8 +666,15 @@ To do:
 
 Missing content (separate feature; retention is opt-in via a popup, state in its own `.dat`):
 
-- [ ] Missing-entries screen: list what is missing and from which mod; "Retain" / "Remove".
-- [ ] Retention `.dat`: per-registry non-`minecraft` names at last save, mod list; tolerant of absence.
+- [x] Missing-entries screen (`GuiRetainRemove` via `StartupQuery.choice`): one prompt listing each missing
+      mod by display name with per-registry counts (and the world type when it belongs to that mod);
+      Retain / Remove / Cancel. One answer applies to all undecided namespaces; a dedicated server retains
+      and logs unless `-Dcleanroom.missingContent=remove`. Remove drops the namespace's names on read (air
+      without a retained cell, provider biome stored, no TE/entity/item retention, generator reset to
+      default) and is remembered; a mod that returns has its decision forgotten.
+- [x] Retention `.dat` (`cleanroom_retained.dat`, format 1): `Registries` (blocks, items, biomes, entities,
+      tile entities; non-`minecraft` names at last save), `Mods` (modid → name version), `Decisions`,
+      `Generator`. Read and written by `IdFormatContainer`; absent or unreadable = no information.
 - [x] Retention of blocks, biomes, tile entities and entities (`RetainedContent`); default retain + log once.
 - [x] Retention of items: `cleanroom:missing_item` carries the original compound; written back verbatim.
 - [ ] Golden-world fixtures: Forge (from `creative`), JEID, NEID; conversion tests against recorded dumps.

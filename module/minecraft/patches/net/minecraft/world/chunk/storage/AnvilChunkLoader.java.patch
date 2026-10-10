@@ -273,7 +273,7 @@
              extendedblockstorage.setBlockLight(new NibbleArray(nbttagcompound.getByteArray("BlockLight")));
              if (flag) {
                  extendedblockstorage.setSkyLight(new NibbleArray(nbttagcompound.getByteArray("SkyLight")));
-@@ -344,15 +439,30 @@
+@@ -344,15 +439,34 @@
          }
  
          chunk.setStorageArrays(aextendedblockstorage);
@@ -301,23 +301,31 @@
 -            readChunkEntity(nbttagcompound1, worldIn, chunk);
 +            Entity entity = readChunkEntity(nbttagcompound1, worldIn, chunk);
 +            if (entity == null && com.cleanroommc.ids.RetainedContent.unknownEntity(nbttagcompound1)) { // Cleanroom: retain the compound so the entity returns with its mod
-+                chunk.retained.entities.add(nbttagcompound1);
-+                com.cleanroommc.ids.RetainedContent.noteMissing(nbttagcompound1.getString("id"), chunk.getPos());
++                if (com.cleanroommc.ids.RetainedContent.isRemoved(nbttagcompound1.getString("id"))) {
++                    com.cleanroommc.ids.RetainedContent.noteRemoved(nbttagcompound1.getString("id")); // Cleanroom: a removed namespace's compounds are dropped, not retained
++                } else {
++                    chunk.retained.entities.add(nbttagcompound1);
++                    com.cleanroommc.ids.RetainedContent.noteMissing(nbttagcompound1.getString("id"), chunk.getPos());
++                }
 +            }
              chunk.setHasEntities(true);
          }
  
-@@ -363,6 +473,9 @@
+@@ -363,6 +477,13 @@
              TileEntity tileentity = TileEntity.create(worldIn, nbttagcompound2);
              if (tileentity != null) {
                  chunk.addTileEntity(tileentity);
 +            } else if (com.cleanroommc.ids.RetainedContent.unknownTileEntity(nbttagcompound2)) { // Cleanroom: retain the compound so the block entity returns with its mod
-+                chunk.retained.tileEntities.add(nbttagcompound2);
-+                com.cleanroommc.ids.RetainedContent.noteMissing(nbttagcompound2.getString("id"), chunk.getPos());
++                if (com.cleanroommc.ids.RetainedContent.isRemoved(nbttagcompound2.getString("id"))) {
++                    com.cleanroommc.ids.RetainedContent.noteRemoved(nbttagcompound2.getString("id"));
++                } else {
++                    chunk.retained.tileEntities.add(nbttagcompound2);
++                    com.cleanroommc.ids.RetainedContent.noteMissing(nbttagcompound2.getString("id"), chunk.getPos());
++                }
              }
          }
  
-@@ -386,8 +499,6 @@
+@@ -386,8 +507,6 @@
                  );
              }
          }
@@ -326,7 +334,7 @@
      }
  
      @Nullable
-@@ -481,4 +592,8 @@
+@@ -481,4 +600,8 @@
  
          return entity;
      }

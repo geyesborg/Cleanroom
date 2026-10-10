@@ -21,6 +21,7 @@ package net.minecraftforge.fml.common;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import net.minecraft.server.MinecraftServer;
 
@@ -38,8 +39,42 @@ public class StartupQuery {
 
     public static void notify(String text)
     {
-        StartupQuery query = new StartupQuery(text, null);
+        StartupQuery query = new StartupQuery(text, (AtomicBoolean) null);
         query.execute();
+    }
+
+    /**
+     * Ask the user to pick one of the options and return its index; a client shows
+     * {@link net.minecraftforge.fml.client.GuiRetainRemove} (its extra Cancel button answers -1,
+     * which aborts the load like a declined confirm). A dedicated server has no GUI: the text is
+     * logged at WARN and the answer is retain (the first option) unless
+     * -Dcleanroom.missingContent names another.
+     */
+    public static int choice(String text, String... options)
+    {
+        if (FMLCommonHandler.instance().getSide().isServer())
+        {
+            FMLLog.log.warn(text);
+            String pick = System.getProperty("cleanroom.missingContent", "retain");
+            for (int i = 0; i < options.length; i++)
+            {
+                if (options[i].equalsIgnoreCase(pick))
+                {
+                    FMLLog.log.info("cleanroom.missingContent={}: {}", pick, options[i]);
+                    return i;
+                }
+            }
+            FMLLog.log.warn("cleanroom.missingContent={} names none of the options; keeping {}", pick, options[0]);
+            return 0;
+        }
+        StartupQuery query = new StartupQuery(text, options);
+        query.execute();
+        int result = query.getChoiceResult();
+        if (result < 0)
+        {
+            abort();
+        }
+        return result;
     }
 
     public static void abort()
@@ -86,6 +121,13 @@ public class StartupQuery {
     {
         this.text = text;
         this.result = result;
+    }
+
+    private StartupQuery(String text, String[] options)
+    {
+        this.text = text;
+        this.result = null;
+        this.options = options;
     }
 
     @Nullable
@@ -164,6 +206,29 @@ public class StartupQuery {
     private String text;
     @Nullable
     private AtomicBoolean result;
+    @Nullable
+    private String[] options;
+    private final AtomicInteger choiceResult = new AtomicInteger(-1);
+
+    public boolean isChoice()
+    {
+        return options != null;
+    }
+
+    public String[] getOptions()
+    {
+        return options;
+    }
+
+    public int getChoiceResult()
+    {
+        return choiceResult.get();
+    }
+
+    public void setChoiceResult(int index)
+    {
+        choiceResult.set(index);
+    }
     private CountDownLatch signal = new CountDownLatch(1);
     private volatile boolean synchronous;
 

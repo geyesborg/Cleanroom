@@ -80,12 +80,32 @@ public class IdFormatContainer extends DummyModContainer implements WorldAccessC
     public NBTTagCompound getDataForWriting(SaveHandler handler, WorldInfo info) {
         NBTTagCompound tag = new NBTTagCompound();
         tag.setString("Format", SAVE_FORMAT);
+        if (net.minecraft.init.Bootstrap.isRegistered()) {
+            try {
+                com.cleanroommc.ids.RetentionFile.capture(info).write(handler.getWorldDirectory());
+            } catch (Exception e) {
+                LOGGER.warn("Could not update " + com.cleanroommc.ids.RetentionFile.FILE_NAME, e);
+            }
+        }
         return tag;
     }
 
     @Override
     public void readData(SaveHandler handler, WorldInfo info, Map<String, NBTBase> propertyMap, NBTTagCompound tag) {
-        File world = handler.getWorldDirectory();
+        checkFormat(handler.getWorldDirectory(), tag);
+        if (!net.minecraft.init.Bootstrap.isRegistered()) {
+            return;
+        }
+        try {
+            com.cleanroommc.ids.RetentionFile.onWorldLoad(handler.getWorldDirectory(), info);
+        } catch (net.minecraftforge.fml.common.StartupQuery.AbortedException e) {
+            throw e; // "Cancel" on the Retain/Remove screen: back to the menu
+        } catch (Exception e) {
+            LOGGER.warn("Retention check failed; loading anyway", e);
+        }
+    }
+
+    private void checkFormat(File world, NBTTagCompound tag) {
         if (tag.hasKey("Format") && !tag.hasKey("Format", 8)) {
             throw new IllegalStateException("World " + world.getName() + " has a non-string Cleanroom ID format in level.dat (cleanroom_ids.Format); restore level.dat from level.dat_old or a backup.");
         }
