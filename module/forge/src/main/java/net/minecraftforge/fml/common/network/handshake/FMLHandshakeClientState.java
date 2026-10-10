@@ -130,10 +130,15 @@ enum FMLHandshakeClientState implements IHandshakeState<FMLHandshakeClientState>
                 // The server's numbering is authoritative: ask for its ordered name list per
                 // mismatched registry so we can adopt it, keeping our own extra entries after
                 // the server's block.
+                FMLLog.log.info("Registry hashes: {} of {} registries differ; adopting the server's order", mismatches.size(), pkt.entries().size());
                 ctx.channel().attr(PENDING_REGISTRY_NAMES).set(new PendingRegistryNames(mismatches));
                 cons.accept(WAITINGREGISTRYNAMES);
                 ctx.writeAndFlush(new FMLHandshakeMessage.RegistryNamesRequest(mismatches)).addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
                 return;
+            }
+            if (!ctx.channel().attr(NetworkDispatcher.IS_LOCAL).get())
+            {
+                FMLLog.log.info("Registry hashes: all {} registries match the server", pkt.entries().size());
             }
             cons.accept(PENDINGCOMPLETE);
             ctx.writeAndFlush(new FMLHandshakeMessage.HandshakeAck(ordinal())).addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);

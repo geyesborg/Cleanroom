@@ -79,6 +79,10 @@ enum FMLHandshakeServerState implements IHandshakeState<FMLHandshakeServerState>
             // request name lists, or refuse with one combined reason without another round trip.
             boolean isLocal = ctx.channel().attr(NetworkDispatcher.IS_LOCAL).get();
             List<RegistrySync.Entry> hashes = isLocal ? Collections.<RegistrySync.Entry>emptyList() : RegistrySync.local(RegistryManager.ACTIVE, false);
+            if (!isLocal)
+            {
+                FMLLog.log.info("Sent registry hashes for {} registries", hashes.size());
+            }
             ctx.writeAndFlush(new FMLHandshakeMessage.ModList(Loader.instance().getActiveModList(), hashes));
         }
     },
