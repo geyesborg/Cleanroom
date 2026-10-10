@@ -244,6 +244,15 @@ derived numbering returns on disconnect through the existing `revertToFrozen`. A
 client reports every server entry as missing. The client state flow could not be driven in the unit harness
 (`TestNetworkHandshake` is disabled upstream); `reconcile`/`adoptOrder` are tested directly.
 
+Verified live against a dev server + dev client (`wideids-testmod`, 2026-10-13): the hash is over the
+**ordered** names, but numbering is derived (vanilla pinned, the rest sorted by `ResourceLocation`
+string), so the same name set hashes identically regardless of registration order — reversing
+registration cannot trip the handshake. A client-only extra name that sorts inside the server's range
+(e.g. `b60` before `b7`) shifts the derived prefix, the hash reports "2 of 11 registries differ", the
+client adopts the server's order and resolves the server's state ids to the same names (placed
+`wideids:b7` probed as `wideids:b7`); extras are appended after the server's block. A client missing a
+server name is refused with a per-registry list of the exact names (`missing wideids:b59`).
+
 **Overrides** (two mods registering one name) do not need syncing: an override changes which object is behind
 a name, not the order of names, so the hash and the numbers are unaffected. If only one side has the overriding
 mod, that is a mod-list mismatch and the mod-list handshake already reports it.
@@ -558,6 +567,15 @@ stable while running.
 | hard-codes a modded number | breaks (was already fragile on Forge) | use the name |
 | is an ID mod (JEID, REID, NEID) | incompatible on purpose; worlds convert once | none |
 
+## Known limitations
+
+- **McRegion → Anvil conversion** (`ChunkLoader`, pre-1.2 worlds) still writes 8-bit block and biome ids
+  and carries no `Add` array; a McRegion-era world holding block or biome ids past 255 loses the high
+  bits on conversion. Reachable only through the legacy converter, never in normal play.
+- **`SPacketEntityEffect.getEffectId()`** returns the id's low byte for compatibility; the wire carries
+  the full id as a varint and the client reads `getFullEffectId()`. Mods must call `getFullEffectId()`
+  for potion ids past 255.
+
 ## Open questions (for the maintainers)
 
 Grouped by what each gates.
@@ -681,5 +699,8 @@ Missing content (separate feature; retention is opt-in via a popup, state in its
 - [x] Retention of blocks, biomes, tile entities and entities (`RetainedContent`); default retain + log once.
 - [x] Retention of items: `cleanroom:missing_item` carries the original compound; written back verbatim.
 - [ ] Golden-world fixtures: Forge (from `creative`), JEID, NEID; conversion tests against recorded dumps.
-- [ ] Two-sided network test: same mods, client-only mod, different mods.
+- [x] Two-sided network test: same mods, client-only mod, different mods. Dev server + dev client with
+      `wideids-testmod`: same name set connects and resolves state ids by name; a client-only extra
+      triggers hash-mismatch adoption and still resolves correctly; a missing name is refused with the
+      exact entries (see Network).
 - [ ] Mod-shaped tests, one per compatibility-table row.
