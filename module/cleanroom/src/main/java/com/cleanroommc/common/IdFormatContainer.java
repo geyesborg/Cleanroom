@@ -37,7 +37,14 @@ public class IdFormatContainer extends DummyModContainer implements WorldAccessC
     public static final String SAVE_FORMAT = "1";
     public static final String NETWORK_FORMAT = "4";
     public static final String FORMAT = SAVE_FORMAT;
+    /** Test-only: advertises a different network format so the format-mismatch rejection can be forced. */
+    public static final String NETWORK_FORMAT_OVERRIDE = "cleanroom.ids.networkFormatOverride";
     private static final Logger LOGGER = LogManager.getLogger("Cleanroom");
+
+    /** The network format this side advertises in the FML mod list; {@link #NETWORK_FORMAT} unless overridden for tests. */
+    public static String advertisedFormat() {
+        return System.getProperty(NETWORK_FORMAT_OVERRIDE, NETWORK_FORMAT);
+    }
 
     public IdFormatContainer() {
         super(new ModMetadata());
@@ -45,7 +52,7 @@ public class IdFormatContainer extends DummyModContainer implements WorldAccessC
         meta.modId = MOD_ID;
         meta.name = "Cleanroom ID format";
         meta.description = "Runtime and saved ID formats (block states, chunks, biomes, items, potions). Both sides of a connection need the same format.";
-        meta.version = NETWORK_FORMAT;
+        meta.version = advertisedFormat();
         meta.parent = CleanroomVersion.MOD_ID;
     }
 
@@ -64,14 +71,14 @@ public class IdFormatContainer extends DummyModContainer implements WorldAccessC
     @NetworkCheckHandler
     public static boolean checkRemote(Map<String, String> remoteMods, Side remoteSide) {
         String remote = remoteMods.get(MOD_ID);
-        if (NETWORK_FORMAT.equals(remote)) {
+        if (advertisedFormat().equals(remote)) {
             return true;
         }
         // Empty: FML's startup probe for vanilla peers, or a vanilla peer (FML reports that itself)
         if (remoteMods.isEmpty()) {
             return false;
         }
-        LOGGER.error("Cleanroom ID format mismatch: this side uses network format {}, the {} uses {}.", NETWORK_FORMAT,
+        LOGGER.error("Cleanroom ID format mismatch: this side uses network format {}, the {} uses {}.", advertisedFormat(),
                 remoteSide == Side.SERVER ? "server" : "client", remote == null ? "none (vanilla, Forge or an older Cleanroom)" : "format " + remote);
         return false;
     }

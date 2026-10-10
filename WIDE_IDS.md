@@ -228,8 +228,9 @@ changed. No dummies, no `injectSnapshot` on connect.
 
 **On mismatch the client asks for the server's name list** for that registry (one extra round-trip, only when
 something differs) and reconciles against it:
-- Names the server has that the client lacks: **refused**, naming them exactly, since the client cannot
-  represent them.
+- Names the server has that the client lacks: **refused**, since the client cannot represent them. The
+  reason names the owning **mod** per namespace (missing mod / different version / same version but
+  different content); the exact names stay in the log.
 - Names the client has that the server lacks (an entry a client-side mod registers: minimap markers, camera
   mods, debug tools): the client **renumbers that registry to the server's order and appends its own extras
   after the server's block**, so every id the server uses means the same thing on both sides and the extras
@@ -251,7 +252,18 @@ registration cannot trip the handshake. A client-only extra name that sorts insi
 (e.g. `b60` before `b7`) shifts the derived prefix, the hash reports "2 of 11 registries differ", the
 client adopts the server's order and resolves the server's state ids to the same names (placed
 `wideids:b7` probed as `wideids:b7`); extras are appended after the server's block. A client missing a
-server name is refused with a per-registry list of the exact names (`missing wideids:b59`).
+server name is refused: the shown reason names the **mod** that owns the names (`Wide IDs Test Mod 0.1.0:
+the server registers 2 entries your copy doesn't (wideids:b59, wideids:b59) — check its config`), one
+line per mod, most entries first; the full per-registry name list stays in the log at INFO.
+
+**The Cleanroom network format is checked before any registry comparison.** Both sides advertise their
+format as the `cleanroom_ids` version in the FML mod list. On a difference the client shows
+`This server runs Cleanroom <server version> (network format X); you are running Cleanroom <client
+version> (format Y). Update the <older side>.` and the server kicks with the mirror text. A client whose
+mod list has no `cleanroom_ids` entry at all (vanilla, Forge, pre-format Cleanroom, FML protocol <3) gets
+`This server runs Cleanroom <version> with wide IDs; your game is too old to join` as a plain-text
+disconnect. `-Dcleanroom.ids.networkFormatOverride=<n>` makes a dev run advertise `<n>` instead — test
+only, never set it on a real install.
 
 **Overrides** (two mods registering one name) do not need syncing: an override changes which object is behind
 a name, not the order of names, so the hash and the numbers are unaffected. If only one side has the overriding

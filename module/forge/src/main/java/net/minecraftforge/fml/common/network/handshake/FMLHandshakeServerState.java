@@ -26,6 +26,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 
+import com.cleanroommc.common.CleanroomVersion;
+import com.cleanroommc.common.IdFormatContainer;
+
 import net.minecraftforge.fml.common.FMLLog;
 import net.minecraftforge.fml.common.Loader;
 import net.minecraftforge.fml.common.network.NetworkRegistry;
@@ -67,6 +70,24 @@ enum FMLHandshakeServerState implements IHandshakeState<FMLHandshakeServerState>
             NetworkDispatcher dispatcher = ctx.channel().attr(NetworkDispatcher.FML_DISPATCHER).get();
             dispatcher.setModList(client.modList());
             FMLLog.log.info("Client attempting to join with {} mods : {}", client.modListSize(), client.modListAsString());
+            // The Cleanroom format check precedes any registry comparison. A client without the
+            // cleanroom_ids entry is a pre-format Cleanroom, Forge or vanilla: refuse with a plain
+            // text a legacy client can render.
+            String clientFormat = client.modList().get(IdFormatContainer.MOD_ID);
+            if (clientFormat == null)
+            {
+                cons.accept(ERROR);
+                dispatcher.rejectHandshake(MismatchMessages.legacyRemoteMessage(CleanroomVersion.BUILD_VERSION));
+                return;
+            }
+            String formatProblem = MismatchMessages.formatMismatch(IdFormatContainer.advertisedFormat(), CleanroomVersion.BUILD_VERSION,
+                    clientFormat, client.modList().get(CleanroomVersion.MOD_ID), false);
+            if (formatProblem != null)
+            {
+                cons.accept(ERROR);
+                dispatcher.rejectHandshake(formatProblem);
+                return;
+            }
             String modRejections = FMLNetworkHandler.checkModList(client, Side.CLIENT);
             if (modRejections != null)
             {
