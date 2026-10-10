@@ -253,7 +253,7 @@ registration cannot trip the handshake. A client-only extra name that sorts insi
 client adopts the server's order and resolves the server's state ids to the same names (placed
 `wideids:b7` probed as `wideids:b7`); extras are appended after the server's block. A client missing a
 server name is refused: the shown reason names the **mod** that owns the names (`Wide IDs Test Mod 0.1.0:
-the server registers 2 entries your copy doesn't (wideids:b59, wideids:b59) — check its config`), one
+the server registers 1 entries your copy doesn't (wideids:b59 (block, item)) — check its config`), one
 line per mod, most entries first; the full per-registry name list stays in the log at INFO.
 
 **The Cleanroom network format is checked before any registry comparison.** Both sides advertise their

@@ -72,16 +72,32 @@ public final class MismatchMessages
             }
         }
 
+        // Per mod: each missing name once, followed by the registries it is missing from in plain words.
+        Map<String, LinkedHashMap<ResourceLocation, List<String>>> namesByMod = new LinkedHashMap<>();
+        for (Map.Entry<String, Map<ResourceLocation, List<ResourceLocation>>> mod : byMod.entrySet())
+        {
+            LinkedHashMap<ResourceLocation, List<String>> names = new LinkedHashMap<>();
+            for (Map.Entry<ResourceLocation, List<ResourceLocation>> registry : mod.getValue().entrySet())
+            {
+                String word = registryWord(registry.getKey());
+                for (ResourceLocation name : registry.getValue())
+                {
+                    names.computeIfAbsent(name, k -> new ArrayList<>()).add(word);
+                }
+            }
+            namesByMod.put(mod.getKey(), names);
+        }
+
         List<String> modLines = new ArrayList<>();
         List<Map.Entry<String, Map<ResourceLocation, List<ResourceLocation>>>> mods = new ArrayList<>(byMod.entrySet());
-        mods.sort(Comparator.comparingInt((Map.Entry<String, Map<ResourceLocation, List<ResourceLocation>>> e) -> -count(e.getValue())));
+        mods.sort(Comparator.comparingInt((Map.Entry<String, Map<ResourceLocation, List<ResourceLocation>>> e) -> -namesByMod.get(e.getKey()).size()));
         for (Map.Entry<String, Map<ResourceLocation, List<ResourceLocation>>> mod : mods)
         {
             String modid = mod.getKey();
             String remoteVersion = remoteMods.get(modid);
             String localVersion = localMods.get(modid);
             String display = localNames.getOrDefault(modid, modid);
-            int total = count(mod.getValue());
+            int total = namesByMod.get(modid).size();
             if (localVersion == null)
             {
                 modLines.add(String.format("Missing mod: %s (%s) %s — the server needs it (adds %s)",
@@ -95,7 +111,7 @@ public final class MismatchMessages
             else
             {
                 modLines.add(String.format("%s %s: the server registers %d entries your copy doesn't (%s) — check its config",
-                        display, localVersion, total, firstNames(mod.getValue(), 3)));
+                        display, localVersion, total, firstNames(namesByMod.get(modid), 3)));
             }
         }
 
@@ -125,14 +141,27 @@ public final class MismatchMessages
         return sb.toString();
     }
 
-    private static int count(Map<ResourceLocation, List<ResourceLocation>> perRegistry)
+    private static final Map<String, String> REGISTRY_WORDS = new LinkedHashMap<>();
+    static
     {
-        int total = 0;
-        for (List<ResourceLocation> names : perRegistry.values())
+        REGISTRY_WORDS.put("minecraft:blocks", "block");
+        REGISTRY_WORDS.put("minecraft:items", "item");
+        REGISTRY_WORDS.put("minecraft:biomes", "biome");
+        REGISTRY_WORDS.put("minecraft:potions", "potion");
+        REGISTRY_WORDS.put("minecraft:enchantments", "enchantment");
+        REGISTRY_WORDS.put("minecraft:entities", "entity");
+    }
+
+    /** The registry key as a plain singular noun; custom registries get their path minus a trailing s. */
+    private static String registryWord(ResourceLocation registry)
+    {
+        String word = REGISTRY_WORDS.get(registry.toString());
+        if (word != null)
         {
-            total += names.size();
+            return word;
         }
-        return total;
+        String path = registry.getPath();
+        return path.endsWith("s") ? path.substring(0, path.length() - 1) : path;
     }
 
     private static String adds(Map<ResourceLocation, List<ResourceLocation>> perRegistry)
@@ -151,26 +180,23 @@ public final class MismatchMessages
         return sb.toString();
     }
 
-    private static String firstNames(Map<ResourceLocation, List<ResourceLocation>> perRegistry, int limit)
+    private static String firstNames(LinkedHashMap<ResourceLocation, List<String>> names, int limit)
     {
         StringBuilder sb = new StringBuilder();
         int shown = 0;
-        for (List<ResourceLocation> names : perRegistry.values())
+        for (Map.Entry<ResourceLocation, List<String>> entry : names.entrySet())
         {
-            for (ResourceLocation name : names)
+            if (shown >= limit)
             {
-                if (shown >= limit)
-                {
-                    sb.append("…");
-                    return sb.toString();
-                }
-                if (shown > 0)
-                {
-                    sb.append(", ");
-                }
-                sb.append(name);
-                shown++;
+                sb.append("…");
+                return sb.toString();
             }
+            if (shown > 0)
+            {
+                sb.append(", ");
+            }
+            sb.append(entry.getKey()).append(" (").append(String.join(", ", entry.getValue())).append(')');
+            shown++;
         }
         return sb.toString();
     }

@@ -87,7 +87,20 @@ public class FMLHandshakeRejectionTest
         String reason = MismatchMessages.missingEntries(
                 missing("minecraft:blocks", new ResourceLocation[] {rl("wideids:b59"), rl("wideids:b60"), rl("wideids:b61"), rl("wideids:b62")}),
                 remote, local, names);
-        assertTrue(reason.contains("WideIds 0.1.0: the server registers 4 entries your copy doesn't (wideids:b59, wideids:b60, wideids:b61…) — check its config"), reason);
+        assertTrue(reason.contains("WideIds 0.1.0: the server registers 4 entries your copy doesn't (wideids:b59 (block), wideids:b60 (block), wideids:b61 (block)…) — check its config"), reason);
+    }
+
+    @Test
+    public void missingEntriesCountsDistinctNamesWithTheirRegistries()
+    {
+        Map<String, String> remote = Collections.singletonMap("wideids", "0.1.0");
+        Map<String, String> local = Collections.singletonMap("wideids", "0.1.0");
+        Map<String, String> names = Collections.singletonMap("wideids", "WideIds");
+        String reason = MismatchMessages.missingEntries(
+                missing("minecraft:blocks", new ResourceLocation[] {rl("wideids:b59")},
+                        "minecraft:items", new ResourceLocation[] {rl("wideids:b59")}),
+                remote, local, names);
+        assertTrue(reason.contains("the server registers 1 entries your copy doesn't (wideids:b59 (block, item))"), reason);
     }
 
     @Test
