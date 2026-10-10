@@ -135,11 +135,12 @@
              this.addChunkToPending(chunkIn.getPos(), nbttagcompound);
          } catch (Exception exception) {
              LOGGER.error("Failed to save chunk", exception);
-@@ -239,22 +286,17 @@
+@@ -239,22 +286,18 @@
          compound.setBoolean("TerrainPopulated", chunkIn.isTerrainPopulated());
          compound.setBoolean("LightPopulated", chunkIn.isLightPopulated());
          compound.setLong("InhabitedTime", chunkIn.getInhabitedTime());
 +        chunkIn.retained.writeLevelTags(compound); // Cleanroom: the stand-in-terrain mark survives saves
++        com.cleanroommc.ids.RetainedContent.indexStandInChunk(chunkIn.retained.getGeneratedWithoutWorldType(), worldIn.provider.getDimension(), chunkIn.getPos()); // Cleanroom: index the mark for the load-time regen prompt
          ExtendedBlockStorage[] aextendedblockstorage = chunkIn.getBlockStorageArray();
          NBTTagList nbttaglist = new NBTTagList();
          boolean flag = worldIn.provider.hasSkyLight();
@@ -162,7 +163,7 @@
  
                  nbttagcompound.setByteArray("BlockLight", extendedblockstorage.getBlockLight().getData());
                  if (flag) {
-@@ -268,28 +310,58 @@
+@@ -268,28 +311,58 @@
          }
  
          compound.setTag("Sections", nbttaglist);
@@ -222,7 +223,7 @@
          compound.setTag("TileEntities", nbttaglist2);
          List<NextTickListEntry> list = worldIn.getPendingBlockUpdates(chunkIn, false);
          if (list != null) {
-@@ -310,6 +382,14 @@
+@@ -310,6 +383,14 @@
  
              compound.setTag("TileTicks", nbttaglist3);
          }
@@ -237,7 +238,7 @@
      }
  
      /** Reads the data stored in the passed NBTTagCompound and creates a Chunk with that data in the passed World. Returns the created Chunk. */
-@@ -321,19 +401,34 @@
+@@ -321,19 +402,34 @@
          chunk.setTerrainPopulated(compound.getBoolean("TerrainPopulated"));
          chunk.setLightPopulated(compound.getBoolean("LightPopulated"));
          chunk.setInhabitedTime(compound.getLong("InhabitedTime"));
@@ -273,7 +274,7 @@
              extendedblockstorage.setBlockLight(new NibbleArray(nbttagcompound.getByteArray("BlockLight")));
              if (flag) {
                  extendedblockstorage.setSkyLight(new NibbleArray(nbttagcompound.getByteArray("SkyLight")));
-@@ -344,15 +439,34 @@
+@@ -344,15 +440,34 @@
          }
  
          chunk.setStorageArrays(aextendedblockstorage);
@@ -311,7 +312,7 @@
              chunk.setHasEntities(true);
          }
  
-@@ -363,6 +477,13 @@
+@@ -363,6 +478,13 @@
              TileEntity tileentity = TileEntity.create(worldIn, nbttagcompound2);
              if (tileentity != null) {
                  chunk.addTileEntity(tileentity);
@@ -325,7 +326,7 @@
              }
          }
  
-@@ -386,8 +507,6 @@
+@@ -386,8 +508,6 @@
                  );
              }
          }
@@ -334,7 +335,7 @@
      }
  
      @Nullable
-@@ -481,4 +600,8 @@
+@@ -481,4 +601,8 @@
  
          return entity;
      }

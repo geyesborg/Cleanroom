@@ -351,9 +351,12 @@ writes them back while the type is still Default; choosing a type on purpose (`s
   retained generator name), every chunk generated gets a `GeneratedWithoutWorldType` mark naming the type,
   and any write outside a population window (players, mobs, fire, growth) clears it; `checkLight()` raises
   `isTerrainPopulated` before the generator plants trees, so population is recognised by Forge's cascading
-  marker, not the flag. The mark is recorded now; the return-time prompt ("N untouched chunks were generated
-  while X was missing; regenerate them?") belongs with the Retain/Remove screen. Marked chunks that were
-  built in are never regenerated, so the only remaining seams are around things players made.
+  marker, not the flag. Marked chunks are indexed per world type and dimension in the retention file as
+  they save; when the type is back and the world runs it, load asks once ("N chunks of the overworld were
+  generated with vanilla terrain while X was missing": Regenerate / Keep). Regenerate backs the world up,
+  then zeroes those chunks' region-file entries so X generates them on the next visit; Keep is remembered.
+  A dedicated server keeps unless `-Dcleanroom.standInTerrain=regenerate`. Marked chunks that were built in
+  are never regenerated, so the only remaining seams are around things players made.
 - So retention is for the *mistake* case (a jar that did not copy, an update that renamed things, a
   dependency that failed), which is also the common case on a long-running world. Someone who means to keep
   playing without the mod picks Remove on the screen. Testers who add and remove mods constantly will see the

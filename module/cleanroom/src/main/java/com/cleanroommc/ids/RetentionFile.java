@@ -1,14 +1,20 @@
 package com.cleanroommc.ids;
 
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import it.unimi.dsi.fastutil.longs.LongSet;
 import net.minecraft.nbt.CompressedStreamTools;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
+import net.minecraft.nbt.NBTTagLongArray;
 import net.minecraft.nbt.NBTTagString;
 import net.minecraft.tileentity.TileEntity;
+import net.minecraft.util.math.ChunkPos;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.world.WorldType;
+import net.minecraft.world.chunk.storage.RegionFileCache;
 import net.minecraft.world.storage.WorldInfo;
 import net.minecraftforge.fml.common.Loader;
+import net.minecraftforge.fml.common.ZipperUtil;
 import net.minecraftforge.fml.common.ModContainer;
 import net.minecraftforge.fml.common.StartupQuery;
 import net.minecraftforge.fml.common.registry.ForgeRegistries;
@@ -17,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 
 import javax.annotation.Nullable;
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -124,6 +131,8 @@ public final class RetentionFile {
     /** the generator name level.dat saved last time */
     @Nullable
     public String generator;
+    /** world type name -> dimension id -> marked stand-in-terrain chunk positions ({@link ChunkPos#asLong}) */
+    public final Map<String, Map<Integer, LongSet>> standInTerrain = new TreeMap<>();
 
     RetentionFile() {
     }
@@ -164,6 +173,17 @@ public final class RetentionFile {
             ret.decisions.put(key, decisions.getString(key));
         }
         ret.generator = tag.hasKey("Generator", 8) ? tag.getString("Generator") : null;
+        NBTTagCompound terrain = tag.getCompoundTag("StandInTerrain");
+        for (String type : terrain.getKeySet()) {
+            NBTTagCompound dims = terrain.getCompoundTag(type);
+            Map<Integer, LongSet> byDim = new TreeMap<>();
+            for (String dim : dims.getKeySet()) {
+                if (dims.getTag(dim) instanceof NBTTagLongArray longs) {
+                    byDim.put(Integer.parseInt(dim), new LongOpenHashSet(longs.getLongArray()));
+                }
+            }
+            ret.standInTerrain.put(type, byDim);
+        }
         return ret;
     }
 
@@ -177,6 +197,11 @@ public final class RetentionFile {
             ret.mods.put(mod.getModId(), mod.getName() + " " + mod.getVersion());
         }
         ret.decisions.putAll(RetainedContent.retentionDecisions());
+        RetainedContent.standInTerrain().forEach((type, dims) -> {
+            Map<Integer, LongSet> copy = new TreeMap<>();
+            dims.forEach((dim, chunks) -> copy.put(dim, new LongOpenHashSet(chunks)));
+            ret.standInTerrain.put(type, copy);
+        });
         String retained = info.getRetainedGeneratorName();
         ret.generator = retained != null ? retained : info.getTerrainType().getName();
         return ret;
@@ -203,6 +228,13 @@ public final class RetentionFile {
         if (generator != null) {
             tag.setString("Generator", generator);
         }
+        NBTTagCompound terrain = new NBTTagCompound();
+        standInTerrain.forEach((type, dims) -> {
+            NBTTagCompound byDim = new NBTTagCompound();
+            dims.forEach((dim, chunks) -> byDim.setTag(String.valueOf(dim), new NBTTagLongArray(chunks.toLongArray())));
+            terrain.setTag(type, byDim);
+        });
+        tag.setTag("StandInTerrain", terrain);
         try {
             CompressedStreamTools.write(tag, new File(worldDir, FILE_NAME));
         } catch (Exception e) {
@@ -316,6 +348,84 @@ public final class RetentionFile {
                 applyWorldTypeDecision(info, worldType, REMOVE);
             }
         }
+
+        file.standInTerrain.forEach((type, dims) -> {
+            Map<Integer, LongSet> dst = RetainedContent.standInTerrain()
+                    .computeIfAbsent(type, t -> new java.util.concurrent.ConcurrentHashMap<>());
+            dims.forEach((dim, chunks) -> dst.computeIfAbsent(dim, d -> new LongOpenHashSet()).addAll(chunks));
+        });
+        askAboutStandInTerrain(worldDir, info, file);
+    }
+
+    /**
+     * Stand-in terrain the saved generator type can now generate itself: for each indexed type with a
+     * non-empty dimension-0 set (only the overworld honours the world type; other dimensions' entries
+     * are ignored and dropped), offer Regenerate or Keep when the type is back, the world runs it, and
+     * no {@code regen:<type>} decision is recorded.
+     */
+    private static void askAboutStandInTerrain(File worldDir, WorldInfo info, RetentionFile file) {
+        for (Map.Entry<String, Map<Integer, LongSet>> entry : RetainedContent.standInTerrain().entrySet()) {
+            String typeName = entry.getKey();
+            Map<Integer, LongSet> dims = entry.getValue();
+            // dimensions other than the overworld never honour its world type: ignored and dropped
+            dims.entrySet().removeIf(e -> !e.getKey().equals(0));
+            LongSet marked = dims.get(0);
+            if (marked == null || marked.isEmpty()) {
+                continue;
+            }
+            WorldType type = WorldType.byName(typeName);
+            if (type == null || info.getTerrainType() != type) {
+                continue; // still missing, or the world runs a different type now: the index persists
+            }
+            if ("keep".equals(file.decisions.get("regen:" + typeName))) {
+                marked.clear(); // a remembered Keep never asks again
+                continue;
+            }
+            // dedicated-server default is Keep (index 1): nobody should regenerate by accident
+            int pick = StartupQuery.choice(regenPromptText(marked.size(), typeName), 1, "cleanroom.standInTerrain", "Regenerate", "Keep");
+            if (pick == 0) {
+                backupForRegen(worldDir);
+                RegionFileCache.clearRegionFileReferences(); // release the open .mca handles first
+                File regionDir = new File(worldDir, "region");
+                int erased = 0;
+                for (long key : marked) {
+                    try {
+                        RegionChunkEraser.erase(regionDir, new ChunkPos(ChunkPos.getX(key), ChunkPos.getZ(key)));
+                        erased++;
+                    } catch (IOException e) {
+                        LOGGER.warn("Could not erase stand-in chunk {},{} of {}", ChunkPos.getX(key), ChunkPos.getZ(key), typeName, e);
+                    }
+                }
+                LOGGER.info("Erased {} stand-in chunks of {}; they regenerate on next visit", erased, typeName);
+            } else {
+                RetainedContent.retentionDecisions().put("regen:" + typeName, "keep");
+            }
+            marked.clear();
+        }
+    }
+
+    private static void backupForRegen(File worldDir) {
+        try {
+            String skip = System.getProperty("fml.doNotBackup");
+            if (skip == null || !"true".equals(skip)) {
+                ZipperUtil.backupWorld(worldDir);
+            } else {
+                for (int x = 0; x < 10; x++) {
+                    LOGGER.error("!!!!!!!!!! UPDATING WORLD WITHOUT DOING BACKUP !!!!!!!!!!!!!!!!");
+                }
+            }
+        } catch (IOException e) {
+            StartupQuery.notify("The world backup couldn't be created.\n\n" + e);
+            StartupQuery.abort();
+        }
+    }
+
+    private static String regenPromptText(int count, String typeName) {
+        return count + " chunks of the overworld were generated with vanilla terrain while world type " + typeName
+                + " was missing, and nothing has been built in them.\n\n"
+                + "Regenerate: those chunks are deleted now and " + typeName + " generates them fresh when you next visit; "
+                + "chunks you built in are never touched, so seams remain only around your builds. A backup of the world is made first.\n"
+                + "Keep: the vanilla terrain stays and you will not be asked again for these chunks.";
     }
 
     /** Clear the retained generator name (the world runs on DEFAULT, and stays there). */

@@ -2,6 +2,9 @@ package com.cleanroommc.ids;
 
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import it.unimi.dsi.fastutil.longs.LongSet;
+import it.unimi.dsi.fastutil.longs.LongSets;
 import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.EntityList;
@@ -218,6 +221,35 @@ public final class RetainedContent {
         return RETENTION_DECISIONS;
     }
 
+    /**
+     * Session index of chunks carrying the stand-in-terrain mark: world type name -> dimension id
+     * -> chunk positions ({@link ChunkPos#asLong}). AnvilChunkLoader's write path maintains it, and
+     * cleanroom_retained.dat persists it, so world load knows the marked count without scanning region
+     * files. Worlds last saved before this index existed carry marks in chunks but no index entries;
+     * they are indexed as their chunks re-save.
+     */
+    private static final Map<String, Map<Integer, LongSet>> STAND_IN_TERRAIN = new ConcurrentHashMap<>();
+
+    public static Map<String, Map<Integer, LongSet>> standInTerrain() {
+        return STAND_IN_TERRAIN;
+    }
+
+    /** Chunk write: index the mark, or drop this position from every type when it was written unmarked. */
+    public static void indexStandInChunk(@Nullable String worldType, int dimension, ChunkPos pos) {
+        long key = ChunkPos.asLong(pos.x, pos.z);
+        if (worldType != null) {
+            STAND_IN_TERRAIN.computeIfAbsent(worldType, t -> new ConcurrentHashMap<>())
+                    .computeIfAbsent(dimension, d -> LongSets.synchronize(new LongOpenHashSet()))
+                    .add(key);
+        } else {
+            for (Map<Integer, LongSet> dims : STAND_IN_TERRAIN.values()) {
+                for (LongSet chunks : dims.values()) {
+                    chunks.remove(key);
+                }
+            }
+        }
+    }
+
     /** Once per session per name: the user's "Remove" answer deleting this content as it is read. */
     public static void noteRemoved(String name) {
         if (LOGGED.add("removed " + name)) {
@@ -229,6 +261,7 @@ public final class RetainedContent {
     public static void clearWorldState() {
         REMOVED_NAMESPACES.clear();
         RETENTION_DECISIONS.clear();
+        STAND_IN_TERRAIN.clear();
         resetLogged();
     }
     public static void resetLogged() {
