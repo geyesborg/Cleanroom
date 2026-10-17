@@ -1,5 +1,13 @@
 --- original/net/minecraft/world/gen/structure/StructureVillagePieces.java
 +++ modified/net/minecraft/world/gen/structure/StructureVillagePieces.java
+@@ -36,7 +36,23 @@
+ import net.minecraft.world.gen.structure.template.TemplateManager;
+ import net.minecraft.world.storage.loot.LootTableList;
+ 
++@SuppressWarnings("deprecation") // Cleanroom: metadata uses in this file are the legacy view
+ public class StructureVillagePieces {
++    @Nullable
++    private static String retainMissingCropName(NBTTagCompound tag, String nameKey, String idKey) {
 +        String name = tag.hasKey(nameKey, 8) ? tag.getString(nameKey) : null;
 +        if ((name == null || name.isEmpty()) && tag.hasKey(idKey, 99)) {
 +            net.minecraft.util.ResourceLocation leg = com.cleanroommc.ids.LegacyIds.blockName(tag.getInteger(idKey));

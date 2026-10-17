@@ -1,0 +1,55 @@
+--- original/net/minecraft/tileentity/TileEntityBed.java
++++ modified/net/minecraft/tileentity/TileEntityBed.java
+@@ -9,25 +9,30 @@
+ import net.minecraftforge.fml.relauncher.Side;
+ import net.minecraftforge.fml.relauncher.SideOnly;
+ 
++@SuppressWarnings("deprecation") // Cleanroom: legacy-number uses in this file are the legacy view
+ public class TileEntityBed extends TileEntity {
+     private EnumDyeColor color = EnumDyeColor.RED;
++    @javax.annotation.Nullable
++    private String retainedColorName;
++    private int retainedColorMeta = -1;
+ 
+     public void setItemValues(ItemStack p_193051_1_) {
+-        this.setColor(EnumDyeColor.byMetadata(p_193051_1_.getMetadata()));
++        this.setColor(p_193051_1_.getItem() == Items.BED ? p_193051_1_.getItemState().getValue(net.minecraft.item.ItemBed.COLOR) : EnumDyeColor.byMetadata(p_193051_1_.getMetadata()));
+     }
+ 
+     @Override
+     public void readFromNBT(NBTTagCompound compound) {
+         super.readFromNBT(compound);
+-        if (compound.hasKey("color")) {
+-            this.color = EnumDyeColor.byMetadata(compound.getInteger("color"));
+-        }
++        com.cleanroommc.ids.RetainedContent.DyeRead d = com.cleanroommc.ids.RetainedContent.readDyeColor(compound, "ColorName", "color", false, EnumDyeColor.RED);
++        this.color = d.color();
++        this.retainedColorName = d.retainedName();
++        this.retainedColorMeta = d.retainedNumber();
+     }
+ 
+     @Override
+     public NBTTagCompound writeToNBT(NBTTagCompound compound) {
+         super.writeToNBT(compound);
+-        compound.setInteger("color", this.color.getMetadata());
++        com.cleanroommc.ids.RetainedContent.writeDyeColor(compound, "ColorName", "color", false, false, this.color, this.retainedColorName, this.retainedColorMeta);
+         return compound;
+     }
+ 
+@@ -48,6 +53,8 @@
+     }
+ 
+     public void setColor(EnumDyeColor color) {
++        this.retainedColorName = null;
++        this.retainedColorMeta = -1;
+         this.color = color;
+         this.markDirty();
+     }
+@@ -58,6 +65,6 @@
+     }
+ 
+     public ItemStack getItemStack() {
+-        return new ItemStack(Items.BED, 1, this.color.getMetadata());
++        ItemStack stack = new ItemStack(Items.BED, 1, this.color.getMetadata()); stack.setItemState(Items.BED.getDefaultItemState().withProperty(net.minecraft.item.ItemBed.COLOR, this.color)); return stack;
+     }
+ }

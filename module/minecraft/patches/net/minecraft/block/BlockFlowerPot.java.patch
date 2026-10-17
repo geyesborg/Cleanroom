@@ -1,5 +1,13 @@
 --- original/net/minecraft/block/BlockFlowerPot.java
 +++ modified/net/minecraft/block/BlockFlowerPot.java
+@@ -32,6 +32,7 @@
+ import net.minecraftforge.fml.relauncher.Side;
+ import net.minecraftforge.fml.relauncher.SideOnly;
+ 
++@SuppressWarnings("deprecation") // Cleanroom: metadata uses in this file are the legacy view
+ public class BlockFlowerPot extends BlockContainer {
+     public static final PropertyInteger LEGACY_DATA = PropertyInteger.create("legacy_data", 0, 15);
+     public static final PropertyEnum<BlockFlowerPot.EnumFlowerType> CONTENTS = PropertyEnum.create("contents", BlockFlowerPot.EnumFlowerType.class);
 @@ -157,13 +158,15 @@
      /** Checks if this block can be placed exactly at the given position. */
      @Override

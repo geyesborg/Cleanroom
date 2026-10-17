@@ -202,7 +202,17 @@ public class EnumHelper
                     }
                 }
             }
-
+            for (net.minecraft.item.Item item : net.minecraft.item.Item.REGISTRY)
+            {
+                for (net.minecraft.block.properties.IProperty<?> prop : item.getItemState().getProperties())
+                {
+                    if (prop.getValueClass() == net.minecraft.item.EnumDyeColor.class)
+                    {
+                        item.rebuildItemState();
+                        break;
+                    }
+                }
+            }
         }
         return color;
     }
@@ -327,6 +337,17 @@ public class EnumHelper
                     if (prop.getValueClass() == enumType)
                     {
                         block.rebuildBlockState();
+                        break;
+                    }
+                }
+            }
+            for (net.minecraft.item.Item item : net.minecraft.item.Item.REGISTRY)
+            {
+                for (net.minecraft.block.properties.IProperty<?> prop : item.getItemState().getProperties())
+                {
+                    if (prop.getValueClass() == enumType)
+                    {
+                        item.rebuildItemState();
                         break;
                     }
                 }

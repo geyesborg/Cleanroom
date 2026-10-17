@@ -4,18 +4,21 @@
  import net.minecraft.util.NonNullList;
  import net.minecraft.world.World;
  
++@SuppressWarnings("deprecation") // Cleanroom: legacy-number uses in this file are the legacy view
  public class ShieldRecipes {
 -    public static class Decoration implements IRecipe {
 +    public static class Decoration extends net.minecraftforge.registries.IForgeRegistryEntry.Impl<IRecipe> implements IRecipe {
          /** Used to check if a recipe matches current crafting inventory */
          @Override
          public boolean matches(InventoryCrafting inv, World worldIn) {
-@@ -68,7 +69,7 @@
+@@ -68,7 +69,9 @@
  
              NBTTagCompound nbttagcompound = itemstack.getSubCompound("BlockEntityTag");
              NBTTagCompound nbttagcompound1 = nbttagcompound == null ? new NBTTagCompound() : nbttagcompound.copy();
 -            nbttagcompound1.setInteger("Base", itemstack.getMetadata() & 15);
-+            nbttagcompound1.setInteger("Base", net.minecraft.item.ItemBanner.getBaseColor(itemstack).getDyeDamage());
++            net.minecraft.item.EnumDyeColor baseColor = net.minecraft.item.ItemBanner.getBaseColor(itemstack);
++            nbttagcompound1.setInteger("Base", baseColor.getDyeDamage());
++            nbttagcompound1.setString("BaseName", baseColor.getName());
              itemstack1.setTagInfo("BlockEntityTag", nbttagcompound1);
              return itemstack1;
          }

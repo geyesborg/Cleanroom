@@ -1,5 +1,13 @@
 --- original/net/minecraft/entity/passive/EntityWolf.java
 +++ modified/net/minecraft/entity/passive/EntityWolf.java
+@@ -52,6 +52,7 @@
+ import net.minecraftforge.fml.relauncher.Side;
+ import net.minecraftforge.fml.relauncher.SideOnly;
+ 
++@SuppressWarnings("deprecation") // Cleanroom: legacy-number uses in this file are the legacy view
+ public class EntityWolf extends EntityTameable {
+     private static final DataParameter<Float> DATA_HEALTH_ID = EntityDataManager.createKey(EntityWolf.class, DataSerializers.FLOAT);
+     private static final DataParameter<Boolean> BEGGING = EntityDataManager.createKey(EntityWolf.class, DataSerializers.BOOLEAN);
 @@ -144,12 +145,16 @@
          EntityLiving.registerFixesMob(fixer, EntityWolf.class);
      }

@@ -4,6 +4,7 @@
  import net.minecraft.util.NonNullList;
  import net.minecraft.world.World;
  
++@SuppressWarnings("deprecation") // Cleanroom: legacy-number uses in this file are the legacy view
  public class RecipesBanners {
 -    public static class RecipeAddPattern implements IRecipe {
 +    public static class RecipeAddPattern extends net.minecraftforge.registries.IForgeRegistryEntry.Impl<IRecipe> implements IRecipe {
@@ -22,7 +23,15 @@
                          break;
                      }
                  }
-@@ -94,9 +96,7 @@
+@@ -76,6 +78,7 @@
+                 NBTTagCompound nbttagcompound = new NBTTagCompound();
+                 nbttagcompound.setString("Pattern", bannerpattern.getHashname());
+                 nbttagcompound.setInteger("Color", k);
++                nbttagcompound.setString("ColorName", EnumDyeColor.byDyeDamage(k).getName());
+                 nbttaglist.appendTag(nbttagcompound);
+             }
+ 
+@@ -94,9 +97,7 @@
  
              for (int i = 0; i < nonnulllist.size(); i++) {
                  ItemStack itemstack = inv.getStackInSlot(i);
@@ -33,7 +42,7 @@
              }
  
              return nonnulllist;
-@@ -114,7 +114,7 @@
+@@ -114,7 +115,7 @@
                          for (int i = 0; i < p_190933_1_.getSizeInventory() && flag; i++) {
                              ItemStack itemstack = p_190933_1_.getStackInSlot(i);
                              if (!itemstack.isEmpty() && itemstack.getItem() != Items.BANNER) {
@@ -42,7 +51,7 @@
                                      if (flag2) {
                                          flag = false;
                                          break;
-@@ -143,12 +143,13 @@
+@@ -143,12 +144,13 @@
                              int i1 = k % 3;
                              ItemStack itemstack1 = p_190933_1_.getStackInSlot(k);
                              if (!itemstack1.isEmpty() && itemstack1.getItem() != Items.BANNER) {
@@ -58,7 +67,7 @@
                                      flag = false;
                                      break;
                                  }
-@@ -158,7 +159,7 @@
+@@ -158,7 +160,7 @@
                                      break;
                                  }
  
@@ -67,7 +76,7 @@
                              } else if (bannerpattern.getPatterns()[l].charAt(i1) != ' ') {
                                  flag = false;
                                  break;
-@@ -190,7 +191,7 @@
+@@ -190,7 +192,7 @@
          }
      }
  
@@ -76,7 +85,7 @@
          /** Used to check if a recipe matches current crafting inventory */
          @Override
          public boolean matches(InventoryCrafting inv, World worldIn) {
-@@ -269,8 +270,8 @@
+@@ -269,8 +271,8 @@
              for (int i = 0; i < nonnulllist.size(); i++) {
                  ItemStack itemstack = inv.getStackInSlot(i);
                  if (!itemstack.isEmpty()) {
