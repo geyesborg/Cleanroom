@@ -81,8 +81,8 @@ public class ItemStateContainer {
         for (T t : property.getAllowedValues()) {
             String s1 = property.getName(t);
             if (!NAME_PATTERN.matcher(s1).matches()) {
-                throw new IllegalArgumentException("Item: " + item.getClass() + " has property: " + s +
-                        " with invalidly named value: " + s1
+                throw new IllegalArgumentException(
+                    "Item: " + item.getClass() + " has property: " + s + " with invalidly named value: " + s1
                 );
             }
         }
@@ -130,14 +130,6 @@ public class ItemStateContainer {
         return state;
     }
 
-    private List<Iterable<Comparable<?>>> getAllowedValues() {
-        List<Iterable<Comparable<?>>> list = Lists.newArrayList();
-        for (IProperty<?> prop : this.properties.values()) {
-            list.add(((IProperty) prop).getAllowedValues());
-        }
-        return list;
-    }
-
     public ImmutableList<IItemState> getValidStates() {
         return this.validStates;
     }
@@ -165,6 +157,14 @@ public class ItemStateContainer {
             .add("item", Item.REGISTRY.getNameForObject(this.item))
             .add("properties", this.properties.values())
             .toString();
+    }
+
+    private List<Iterable<Comparable<?>>> getAllowedValues() {
+        List<Iterable<Comparable<?>>> list = Lists.newArrayList();
+        for (IProperty<?> prop : this.properties.values()) {
+            list.add(((IProperty) prop).getAllowedValues());
+        }
+        return list;
     }
 
     public static class StateImplementation implements IItemState {
@@ -213,20 +213,19 @@ public class ItemStateContainer {
         public <T extends Comparable<T>> T getValue(IProperty<T> property) {
             Comparable<?> comparable = this.properties.get(property);
             if (comparable == null) {
-                throw new IllegalArgumentException("Cannot get property " + property + " as it does not exist in " +
-                        this.item.getItemState()
+                throw new IllegalArgumentException(
+                    "Cannot get property " + property + " as it does not exist in " + this.item.getItemState()
                 );
             }
             return property.getValueClass().cast(comparable);
         }
 
         @Override
-        public <T extends Comparable<T>,
-        V extends T> IItemState withProperty(IProperty<T> property, V value) {
+        public <T extends Comparable<T>, V extends T> IItemState withProperty(IProperty<T> property, V value) {
             Comparable<?> comparable = this.properties.get(property);
             if (comparable == null) {
-                throw new IllegalArgumentException("Cannot set property " + property + " as it does not exist in " +
-                        this.item.getItemState()
+                throw new IllegalArgumentException(
+                    "Cannot set property " + property + " as it does not exist in " + this.item.getItemState()
                 );
             }
             if (comparable == value) {
@@ -234,7 +233,8 @@ public class ItemStateContainer {
             }
             IItemState next = this.propertyValueTable.get(property, value);
             if (next == null) {
-                throw new IllegalArgumentException("Cannot set property " + property + " to " + value + " on item " +
+                throw new IllegalArgumentException(
+                    "Cannot set property " + property + " to " + value + " on item " +
                         Item.REGISTRY.getNameForObject(this.item) + ", it is not an allowed value"
                 );
             }
@@ -243,7 +243,8 @@ public class ItemStateContainer {
 
         @Override
         public <T extends Comparable<T>> IItemState cycleProperty(IProperty<T> property) {
-            return this.withProperty(property, cyclePropertyValue(property.getAllowedValues(), this.getValue(property))
+            return this.withProperty(
+                property, cyclePropertyValue(property.getAllowedValues(), this.getValue(property))
             );
         }
 

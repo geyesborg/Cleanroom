@@ -44,10 +44,6 @@ public class WorldIdFormatTest {
         MinecraftTestHarness.bootstrap();
     }
 
-    private SaveHandler handler() {
-        return new SaveHandler(directory.toFile(), "world", false, null);
-    }
-
     @Test
     public void migrationDoesNotArchiveTheWorld() throws IOException {
         SaveHandler handler = handler();
@@ -55,7 +51,8 @@ public class WorldIdFormatTest {
         Path region = Files.createDirectories(world.resolve("region")).resolve("r.0.0.mca");
         byte[] content = { 1, 7, 3, 9 };
         Files.write(region, content);
-        assertThatCode(() -> new CleanroomContainer().readData(handler, null, Map.of(), new NBTTagCompound()
+        assertThatCode(() -> new CleanroomContainer().readData(
+            handler, null, Map.of(), new NBTTagCompound()
         )).doesNotThrowAnyException();
         try (var files = Files.list(directory)) {
             assertThat(files.filter(path -> path.getFileName().toString().endsWith(".zip")).count()).isEqualTo(0);
@@ -68,7 +65,8 @@ public class WorldIdFormatTest {
         Path archive = directory.resolve("existing.zip");
         byte[] before = { 8, 4, 2 };
         Files.write(archive, before);
-        assertThatThrownBy(() -> ZipperUtil.zip(directory.resolve("missing-world").toFile(), archive.toFile()
+        assertThatThrownBy(() -> ZipperUtil.zip(
+            directory.resolve("missing-world").toFile(), archive.toFile()
         )).isInstanceOf(IOException.class);
         assertThat(Files.readAllBytes(archive)).isEqualTo(before);
     }
@@ -138,8 +136,9 @@ public class WorldIdFormatTest {
         SaveHandler handler = handler();
         NBTTagCompound tag = new NBTTagCompound();
         tag.setInteger("Format", 999);
-        assertThatThrownBy(() -> container.readData(handler, null, Map.of(), tag
-        )).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> container.readData(handler, null, Map.of(), tag)).isInstanceOf(
+            IllegalStateException.class
+        );
     }
 
     @Test
@@ -149,9 +148,14 @@ public class WorldIdFormatTest {
         for (String value : new String[] { "", "-1", "0", "invalid", "999" }) {
             NBTTagCompound tag = new NBTTagCompound();
             tag.setString("Format", value);
-            assertThatThrownBy(() -> container.readData(handler, null, Map.of(), tag
-            )).isInstanceOf(IllegalStateException.class);
+            assertThatThrownBy(() -> container.readData(handler, null, Map.of(), tag)).isInstanceOf(
+                IllegalStateException.class
+            );
         }
+    }
+
+    private SaveHandler handler() {
+        return new SaveHandler(directory.toFile(), "world", false, null);
     }
 
 }

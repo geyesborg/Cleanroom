@@ -120,9 +120,8 @@ public final class SectionBlockFormat {
         }
     }
 
-    public static void readLegacy(byte[] blockIds, NibbleArray dataNibbles, @Nullable NibbleArray blockIdExtension,
-        BlockStateContainer data
-    ) {
+    public static void readLegacy(
+        byte[] blockIds, NibbleArray dataNibbles, @Nullable NibbleArray blockIdExtension, BlockStateContainer data) {
         for (int i = 0; i < SIZE; i++) {
             int x = i & 15;
             int y = i >> 8 & 15;
@@ -133,36 +132,12 @@ public final class SectionBlockFormat {
         }
     }
 
-    private static void setFromPacked(int cellIndex, int packed, BlockStateContainer data) {
-        int x = cellIndex & 15;
-        int y = cellIndex >> 8 & 15;
-        int z = cellIndex >> 4 & 15;
-        int blockId = packed >>> 4;
-        int meta = packed & 15;
-        Block block = LegacyIds.block(blockId);
-        if (block != null) {
-            data.set(x, y, z, block.getStateFromMeta(meta));
-            return;
-        }
-        data.set(x, y, z, Blocks.AIR.getDefaultState());
-    }
-
     public static boolean isPaletted(NBTTagCompound chunk) {
         if (!chunk.hasKey(CHUNK_PALETTE)) {
             return false;
         }
         chunkPaletteTag(chunk);
         return true;
-    }
-
-    private static NBTTagList chunkPaletteTag(NBTTagCompound chunk) {
-        NBTBase tag = chunk.getTag(CHUNK_PALETTE);
-        if (!(tag instanceof NBTTagList list) || list.tagCount() > 0 && list.getTagType() != 8) {
-            throw new IllegalStateException("Chunk " + chunk.getInteger("xPos") + ", " + chunk.getInteger("zPos") +
-                    " has an invalid " + CHUNK_PALETTE + "; expected a list of block-state strings."
-            );
-        }
-        return list;
     }
 
     public static IBlockState[] readChunkPalette(NBTTagCompound chunk) {
@@ -233,9 +208,7 @@ public final class SectionBlockFormat {
         IBlockState[] entries = new IBlockState[palette.length];
         for (int i = 0; i < palette.length; i++) {
             if (palette[i] < 0 || palette[i] >= chunkPalette.length) {
-                throw corrupt(section,
-                    "refers to chunk palette entry " + palette[i] + " of " + chunkPalette.length
-                );
+                throw corrupt(section, "refers to chunk palette entry " + palette[i] + " of " + chunkPalette.length);
             }
             entries[i] = chunkPalette[palette[i]];
         }
@@ -250,7 +223,8 @@ public final class SectionBlockFormat {
         int bits = bitsFor(entries.length);
         NBTBase tag = section.getTag(STATES);
         if (!(tag instanceof NBTTagLongArray longArray) || longArray.getLongArray().length != longCount(bits)) {
-            throw corrupt(section,
+            throw corrupt(
+                section,
                 "has " + entries.length + " palette entries but no " + longCount(bits) + "-long " + STATES + " array"
             );
         }
@@ -279,24 +253,6 @@ public final class SectionBlockFormat {
         }
     }
 
-    private static void checkNibbles(long[] longs, int paletteSize, NBTTagCompound section) {
-        if (paletteSize >= 16) {
-            return;
-        }
-        for (long word : longs) {
-            for (int shift = 0; shift < 64; shift += 4) {
-                int value = (int) (word >>> shift & 15);
-                if (value >= paletteSize) {
-                    throw corrupt(section, "refers to palette entry " + value + " of " + paletteSize);
-                }
-            }
-        }
-    }
-
-    private static IllegalStateException corrupt(NBTTagCompound section, String problem) {
-        return new IllegalStateException("Chunk section Y=" + section.getByte("Y") + " " + problem + ".");
-    }
-
     static String toString(IBlockState state) {
         ResourceLocation name = Block.REGISTRY.getNameForObject(state.getBlock());
         if (state.getProperties().isEmpty()) {
@@ -312,11 +268,6 @@ public final class SectionBlockFormat {
             out.append(entry.getKey().getName()).append('=').append(valueName(entry.getKey(), entry.getValue()));
         }
         return out.append(']').toString();
-    }
-
-    @SuppressWarnings("unchecked")
-    private static <T extends Comparable<T>> String valueName(IProperty<T> property, Comparable<?> value) {
-        return property.getName((T) value);
     }
 
     static IBlockState parse(String s) {
@@ -348,12 +299,6 @@ public final class SectionBlockFormat {
         return state;
     }
 
-    private static <T extends Comparable<T>> IBlockState withValue(IBlockState state, IProperty<T> property,
-        String value
-    ) {
-        return property.parseValue(value).toJavaUtil().map(v -> state.withProperty(property, v)).orElse(state);
-    }
-
     static int bitsFor(int paletteSize) {
         return Math.max(4, 32 - Integer.numberOfLeadingZeros(paletteSize - 1));
     }
@@ -380,6 +325,59 @@ public final class SectionBlockFormat {
             indices[i] = (int) (longs[i / perLong] >>> (i % perLong * bits) & mask);
         }
         return indices;
+    }
+
+    private static void setFromPacked(int cellIndex, int packed, BlockStateContainer data) {
+        int x = cellIndex & 15;
+        int y = cellIndex >> 8 & 15;
+        int z = cellIndex >> 4 & 15;
+        int blockId = packed >>> 4;
+        int meta = packed & 15;
+        Block block = LegacyIds.block(blockId);
+        if (block != null) {
+            data.set(x, y, z, block.getStateFromMeta(meta));
+            return;
+        }
+        data.set(x, y, z, Blocks.AIR.getDefaultState());
+    }
+
+    private static NBTTagList chunkPaletteTag(NBTTagCompound chunk) {
+        NBTBase tag = chunk.getTag(CHUNK_PALETTE);
+        if (!(tag instanceof NBTTagList list) || list.tagCount() > 0 && list.getTagType() != 8) {
+            throw new IllegalStateException(
+                "Chunk " + chunk.getInteger("xPos") + ", " + chunk.getInteger("zPos") + " has an invalid " +
+                    CHUNK_PALETTE + "; expected a list of block-state strings."
+            );
+        }
+        return list;
+    }
+
+    private static void checkNibbles(long[] longs, int paletteSize, NBTTagCompound section) {
+        if (paletteSize >= 16) {
+            return;
+        }
+        for (long word : longs) {
+            for (int shift = 0; shift < 64; shift += 4) {
+                int value = (int) (word >>> shift & 15);
+                if (value >= paletteSize) {
+                    throw corrupt(section, "refers to palette entry " + value + " of " + paletteSize);
+                }
+            }
+        }
+    }
+
+    private static IllegalStateException corrupt(NBTTagCompound section, String problem) {
+        return new IllegalStateException("Chunk section Y=" + section.getByte("Y") + " " + problem + ".");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T extends Comparable<T>> String valueName(IProperty<T> property, Comparable<?> value) {
+        return property.getName((T) value);
+    }
+
+    private static <T extends Comparable<T>> IBlockState withValue(
+        IBlockState state, IProperty<T> property, String value) {
+        return property.parseValue(value).toJavaUtil().map(v -> state.withProperty(property, v)).orElse(state);
     }
 
     public sealed interface SectionFormat {
@@ -416,6 +414,14 @@ public final class SectionBlockFormat {
             indexOf.defaultReturnValue(-1);
         }
 
+        public NBTTagList toNBT() {
+            NBTTagList list = new NBTTagList();
+            for (IBlockState entry : entries) {
+                list.appendTag(new NBTTagString(SectionBlockFormat.toString(entry)));
+            }
+            return list;
+        }
+
         int indexOf(IBlockState state) {
             int index = indexOf.getInt(state);
             if (index < 0) {
@@ -424,14 +430,6 @@ public final class SectionBlockFormat {
                 entries.add(state);
             }
             return index;
-        }
-
-        public NBTTagList toNBT() {
-            NBTTagList list = new NBTTagList();
-            for (IBlockState entry : entries) {
-                list.appendTag(new NBTTagString(SectionBlockFormat.toString(entry)));
-            }
-            return list;
         }
 
     }

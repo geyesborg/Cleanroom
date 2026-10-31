@@ -65,7 +65,8 @@ public class ItemStackPacketTest {
             netComponent.setRegistryName(new ResourceLocation("test", "net"));
             IForgeRegistry<DataComponentType<?>> registry = componentRegistry();
             if (registry.getValue(new ResourceLocation("cleanroom", "damage")) == null) {
-                registry.registerAll(DataComponents.DAMAGE, DataComponents.MAX_DAMAGE, DataComponents.MAX_STACK_SIZE,
+                registry.registerAll(
+                    DataComponents.DAMAGE, DataComponents.MAX_DAMAGE, DataComponents.MAX_STACK_SIZE,
                     DataComponents.LEGACY_VARIANT
                 );
             }

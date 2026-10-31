@@ -190,9 +190,7 @@ public final class LegacyIds {
     }
 
     @Nullable
-    public static Potion beaconEffect(NBTTagCompound compound, String nameKey, String idKey,
-        Set<Potion> validEffects
-    ) {
+    public static Potion beaconEffect(NBTTagCompound compound, String nameKey, String idKey, Set<Potion> validEffects) {
         Potion potion = compound.hasKey(nameKey, 8)
             ? Potion.REGISTRY.getObject(new ResourceLocation(compound.getString(nameKey)))
             : potion(compound.getInteger(idKey));

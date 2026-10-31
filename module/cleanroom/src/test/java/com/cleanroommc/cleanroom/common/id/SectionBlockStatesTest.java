@@ -70,8 +70,8 @@ public class SectionBlockStatesTest {
         long[] packed = new long[SectionBlockFormat.longCount(4)];
         packed[0] = 2;
         section.setTag(SectionBlockFormat.STATES, new NBTTagLongArray(packed));
-        assertThatThrownBy(() -> SectionBlockFormat.read(section, data,
-            new IBlockState[] { Blocks.AIR.getDefaultState(), Blocks.STONE.getDefaultState() }
+        assertThatThrownBy(() -> SectionBlockFormat.read(
+            section, data, new IBlockState[] { Blocks.AIR.getDefaultState(), Blocks.STONE.getDefaultState() }
         )).isInstanceOf(IllegalStateException.class);
         assertThat(data.get(0, 0, 0)).isSameAs(Blocks.STONE.getDefaultState());
     }
@@ -102,14 +102,17 @@ public class SectionBlockStatesTest {
         for (IBlockState state : allStates()) {
             assertThat(SectionBlockFormat.parse(SectionBlockFormat.toString(state))).isSameAs(state);
         }
-        assertThat(SectionBlockFormat.toString(Blocks.STONE.getStateFromMeta(1
-        ))).isEqualTo("minecraft:stone[variant=granite]");
+        assertThat(SectionBlockFormat.toString(Blocks.STONE.getStateFromMeta(1))).isEqualTo(
+            "minecraft:stone[variant=granite]"
+        );
         assertThat(SectionBlockFormat.parse("nomod:gone[x=1]")).isSameAs(Blocks.AIR.getDefaultState());
-        assertThat(SectionBlockFormat.parse("minecraft:stone[variant=nope,unknown=1]"
-        )).isSameAs(Blocks.STONE.getDefaultState());
+        assertThat(SectionBlockFormat.parse("minecraft:stone[variant=nope,unknown=1]")).isSameAs(
+            Blocks.STONE.getDefaultState()
+        );
         assertThat(SectionBlockFormat.parse("minecraft:stone[")).isSameAs(Blocks.STONE.getDefaultState());
         assertThat(SectionBlockFormat.parse("minecraft:stone[]")).isSameAs(Blocks.STONE.getDefaultState());
-        assertThat(SectionBlockFormat.parse("minecraft:stone[variant=granite")).isSameAs(Blocks.STONE.getStateFromMeta(1
+        assertThat(SectionBlockFormat.parse("minecraft:stone[variant=granite")).isSameAs(Blocks.STONE.getStateFromMeta(
+            1
         ));
     }
 
@@ -189,8 +192,8 @@ public class SectionBlockStatesTest {
         // bits byte, the state id varint, the empty long array varint
         assertThat(expected[0] & 0xFF).isEqualTo(0);
         assertThat(expected[expected.length - 1] & 0xFF).isEqualTo(0);
-        assertThat(expected.length).isEqualTo(1 +
-                PacketBuffer.getVarIntSize(net.minecraft.block.Block.BLOCK_STATE_IDS.get(stone)) + 1
+        assertThat(expected.length).isEqualTo(
+            1 + PacketBuffer.getVarIntSize(net.minecraft.block.Block.BLOCK_STATE_IDS.get(stone)) + 1
         );
         BlockStateContainer back = new BlockStateContainer();
         back.read(buf);
@@ -206,8 +209,8 @@ public class SectionBlockStatesTest {
         NBTTagCompound section = new NBTTagCompound();
         section.setIntArray(SectionBlockFormat.PALETTE, new int[] { 0, 1 });
         section.setTag(SectionBlockFormat.STATES, new NBTTagLongArray(new long[SectionBlockFormat.longCount(4)]));
-        SectionBlockFormat.read(section, data,
-            new IBlockState[] { Blocks.AIR.getDefaultState(), Blocks.AIR.getDefaultState() }
+        SectionBlockFormat.read(
+            section, data, new IBlockState[] { Blocks.AIR.getDefaultState(), Blocks.AIR.getDefaultState() }
         );
         assertThat(data.getRawBits()).isEqualTo(0);
         assertThat(data.getRawStorage()).isNull();

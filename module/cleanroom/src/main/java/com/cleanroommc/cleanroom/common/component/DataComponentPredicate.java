@@ -53,8 +53,8 @@ import java.util.regex.Pattern;
  */
 public final class DataComponentPredicate implements Predicate<ItemStack> {
 
-    public static final DataComponentPredicate EMPTY = new DataComponentPredicate(Collections.emptyMap(),
-        Collections.emptySet(), Collections.emptyMap()
+    public static final DataComponentPredicate EMPTY = new DataComponentPredicate(
+        Collections.emptyMap(), Collections.emptySet(), Collections.emptyMap()
     );
     private static final Pattern PROPERTY_NAME = Pattern.compile("^[a-z0-9_]+$");
 
@@ -62,9 +62,9 @@ public final class DataComponentPredicate implements Predicate<ItemStack> {
     private final Set<DataComponentType<?>> removed;
     private final Map<String, String> stateProperties;
 
-    private DataComponentPredicate(Map<DataComponentType<?>, Object> expected, Set<DataComponentType<?>> removed,
-        Map<String, String> stateProperties
-    ) {
+    private DataComponentPredicate(
+        Map<DataComponentType<?>, Object> expected, Set<DataComponentType<?>> removed,
+        Map<String, String> stateProperties) {
         this.expected = expected.isEmpty()
             ? Collections.emptyMap()
             : Collections.unmodifiableMap(new Reference2ObjectArrayMap<>(expected));
@@ -390,8 +390,8 @@ public final class DataComponentPredicate implements Predicate<ItemStack> {
             if (itemProp != null) {
                 Optional<?> parsed = itemProp.parseValue(propVal);
                 if (!parsed.isPresent()) {
-                    throw new IllegalArgumentException("Invalid value '" + propVal + "' for item property '" +
-                            propName + "'"
+                    throw new IllegalArgumentException(
+                        "Invalid value '" + propVal + "' for item property '" + propName + "'"
                     );
                 }
                 stack.setItemState(stack.getItemState().withProperty(itemProp, (Comparable) parsed.get()));
@@ -403,16 +403,16 @@ public final class DataComponentPredicate implements Predicate<ItemStack> {
                 if (blockProp != null && bs != null) {
                     Optional<?> parsed = blockProp.parseValue(propVal);
                     if (!parsed.isPresent()) {
-                        throw new IllegalArgumentException("Invalid value '" + propVal + "' for block property '" +
-                                propName + "'"
+                        throw new IllegalArgumentException(
+                            "Invalid value '" + propVal + "' for block property '" + propName + "'"
                         );
                     }
                     stack.set(DataComponents.BLOCK_STATE, bs.withProperty(blockProp, (Comparable) parsed.get()));
                     continue;
                 }
             }
-            throw new IllegalArgumentException("Unknown component or state property '" + propName + "' on " +
-                    stack.getItem().getRegistryName()
+            throw new IllegalArgumentException(
+                "Unknown component or state property '" + propName + "' on " + stack.getItem().getRegistryName()
             );
         }
     }
@@ -447,14 +447,6 @@ public final class DataComponentPredicate implements Predicate<ItemStack> {
             return this;
         }
 
-        Builder expectRaw(DataComponentType<?> type, Object value) {
-            Objects.requireNonNull(type, "type");
-            Objects.requireNonNull(value, "value");
-            removed.remove(type);
-            expected.put(type, value);
-            return this;
-        }
-
         public Builder without(DataComponentType<?> type) {
             Objects.requireNonNull(type, "type");
             expected.remove(type);
@@ -472,6 +464,14 @@ public final class DataComponentPredicate implements Predicate<ItemStack> {
                 return EMPTY;
             }
             return new DataComponentPredicate(expected, removed, stateProperties);
+        }
+
+        Builder expectRaw(DataComponentType<?> type, Object value) {
+            Objects.requireNonNull(type, "type");
+            Objects.requireNonNull(value, "value");
+            removed.remove(type);
+            expected.put(type, value);
+            return this;
         }
 
     }

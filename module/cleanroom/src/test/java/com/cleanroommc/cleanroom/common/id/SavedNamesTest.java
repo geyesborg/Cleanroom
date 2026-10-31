@@ -55,9 +55,9 @@ public class SavedNamesTest {
 
     private static Enchantment wideEnchantment() {
         if (!ForgeRegistries.ENCHANTMENTS.containsKey(ENCH_NAME)) {
-            Enchantment enchantment = new Enchantment(Enchantment.Rarity.RARE, EnumEnchantmentType.ALL,
-                new EntityEquipmentSlot[] { EntityEquipmentSlot.MAINHAND }
-            ) { };
+            Enchantment enchantment = new Enchantment(
+                Enchantment.Rarity.RARE, EnumEnchantmentType.ALL,
+                new EntityEquipmentSlot[] { EntityEquipmentSlot.MAINHAND }) { };
             enchantment.setRegistryName(ENCH_NAME);
             ForgeRegistries.ENCHANTMENTS.register(enchantment);
         }

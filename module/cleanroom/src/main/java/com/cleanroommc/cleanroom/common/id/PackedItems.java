@@ -75,18 +75,6 @@ public final class PackedItems {
         }
     }
 
-    private static int packKey(Key key) {
-        synchronized (KEYS) {
-            int n = NUMBERS.getInt(key);
-            if (n < 0) {
-                n = KEYS.size();
-                KEYS.add(key);
-                NUMBERS.put(key, n);
-            }
-            return Integer.MIN_VALUE | n;
-        }
-    }
-
     public static ItemStack unpack(int packed) {
         if (packed == 0) {
             return ItemStack.EMPTY;
@@ -107,6 +95,18 @@ public final class PackedItems {
             stack.getComponents().restorePatch(key.components().asPatch());
         }
         return stack;
+    }
+
+    private static int packKey(Key key) {
+        synchronized (KEYS) {
+            int n = NUMBERS.getInt(key);
+            if (n < 0) {
+                n = KEYS.size();
+                KEYS.add(key);
+                NUMBERS.put(key, n);
+            }
+            return Integer.MIN_VALUE | n;
+        }
     }
 
     private record Key(Item item, int meta, @Nullable PatchedDataComponentMap components) { }

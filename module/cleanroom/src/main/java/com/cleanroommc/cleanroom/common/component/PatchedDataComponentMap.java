@@ -38,9 +38,8 @@ public class PatchedDataComponentMap implements DataComponentMap {
         this.patch = new Reference2ObjectArrayMap<>();
     }
 
-    private PatchedDataComponentMap(DataComponentMap prototype,
-        Reference2ObjectArrayMap<DataComponentType<?>, Optional<?>> patch
-    ) {
+    private PatchedDataComponentMap(
+        DataComponentMap prototype, Reference2ObjectArrayMap<DataComponentType<?>, Optional<?>> patch) {
         this.prototype = prototype;
         this.patch = patch;
     }

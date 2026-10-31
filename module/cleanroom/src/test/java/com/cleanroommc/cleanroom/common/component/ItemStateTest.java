@@ -95,17 +95,21 @@ class ItemStateTest {
 
         // Fish, Skull, Golden Apple
         assertThat(Items.FISH.getItemState().getValidStates().size()).isEqualTo(4);
-        assertThat(new ItemStack(Items.FISH, 1, 3).getItemState().getValue(ItemFishFood.TYPE)
-        ).isEqualTo(ItemFishFood.FishType.PUFFERFISH);
+        assertThat(new ItemStack(Items.FISH, 1, 3).getItemState().getValue(ItemFishFood.TYPE)).isEqualTo(
+            ItemFishFood.FishType.PUFFERFISH
+        );
         assertThat(Items.SKULL.getItemState().getValidStates().size()).isEqualTo(6);
-        assertThat(new ItemStack(Items.SKULL, 1, 5).getItemState().getValue(ItemSkull.TYPE)
-        ).isEqualTo(ItemSkull.SkullType.DRAGON);
+        assertThat(new ItemStack(Items.SKULL, 1, 5).getItemState().getValue(ItemSkull.TYPE)).isEqualTo(
+            ItemSkull.SkullType.DRAGON
+        );
         assertThat(Items.GOLDEN_APPLE.getItemState().getValidStates().size()).isEqualTo(2);
         assertThat(new ItemStack(Items.GOLDEN_APPLE, 1, 1).getItemState().getValue(ItemAppleGold.ENCHANTED)).isTrue();
-        assertThat(new ItemStack(Items.BED, 1, 14).getItemState().getValue(net.minecraft.item.ItemBed.COLOR)
-        ).isEqualTo(EnumDyeColor.RED);
-        assertThat(net.minecraft.item.ItemBanner.getBaseColor(new ItemStack(Items.BANNER, 1, 4
-        ))).isEqualTo(EnumDyeColor.BLUE);
+        assertThat(new ItemStack(Items.BED, 1, 14).getItemState().getValue(net.minecraft.item.ItemBed.COLOR)).isEqualTo(
+            EnumDyeColor.RED
+        );
+        assertThat(net.minecraft.item.ItemBanner.getBaseColor(new ItemStack(Items.BANNER, 1, 4))).isEqualTo(
+            EnumDyeColor.BLUE
+        );
     }
 
     @Test

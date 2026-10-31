@@ -109,31 +109,6 @@ public final class IdDataFixers {
         normalizeEnchantmentList(tag, "StoredEnchantments");
     }
 
-    private static void normalizeEnchantmentList(NBTTagCompound tag, String listKey) {
-        if (!tag.hasKey(listKey, 9)) {
-            return;
-        }
-        NBTTagList list = tag.getTagList(listKey, 10);
-        for (int i = 0; i < list.tagCount(); i++) {
-            NBTTagCompound entry = list.getCompoundTagAt(i);
-            if (entry.hasKey("id", 99)) {
-                int rawId = entry.getTagId("id") == 2 ? (entry.getShort("id") & 0xFFFF) : entry.getInteger("id");
-                Enchantment ench = entry.hasKey("name", 8)
-                    ? Enchantment.REGISTRY.getObject(new ResourceLocation(entry.getString("name")))
-                    : LegacyIds.enchantment(rawId);
-                if (ench != null) {
-                    entry.setInteger("id", Enchantment.getEnchantmentID(ench));
-                    ResourceLocation rl = Enchantment.REGISTRY.getNameForObject(ench);
-                    if (rl != null) {
-                        entry.setString("name", rl.toString());
-                    }
-                } else if (entry.getTagId("id") != 3) {
-                    entry.setInteger("id", rawId);
-                }
-            }
-        }
-    }
-
     public static NBTTagCompound fixBlockEntityTag(NBTTagCompound compound) {
         if (compound.hasKey("PrimaryName", 8) || compound.hasKey("Primary", 99)) {
             fixBeaconEffectTag(compound, "PrimaryName", "Primary");
@@ -169,7 +144,9 @@ public final class IdDataFixers {
             Block block = LegacyIds.block(legacyBlockId);
             if (block != null && block != Blocks.AIR) {
                 compound.setInteger("blockId", Block.getIdFromBlock(block));
-                compound.setTag("blockState", NBTUtil.writeBlockState(new NBTTagCompound(), block.getStateFromMeta(meta)));
+                compound.setTag(
+                    "blockState", NBTUtil.writeBlockState(new NBTTagCompound(), block.getStateFromMeta(meta))
+                );
             } else {
                 compound.setInteger("blockId", 0);
             }
@@ -217,27 +194,12 @@ public final class IdDataFixers {
         }
         if (compound.hasKey("ProfessionName", 8)) {
             VillagerRegistry.VillagerProfession prof = ForgeRegistries.VILLAGER_PROFESSIONS.getValue(
-                new ResourceLocation(compound.getString("ProfessionName"))
-            );
+                new ResourceLocation(compound.getString("ProfessionName")));
             if (prof != null) {
                 compound.setInteger("Profession", VillagerRegistry.getId(prof));
             }
         }
         return compound;
-    }
-
-    private static void fixBeaconEffectTag(NBTTagCompound compound, String nameKey, String idKey) {
-        if (compound.hasKey(nameKey, 8)) {
-            Potion potion = Potion.REGISTRY.getObject(new ResourceLocation(compound.getString(nameKey)));
-            compound.setInteger(idKey, potion == null ? -1 : Potion.getIdFromPotion(potion));
-        } else if (compound.hasKey(idKey, 99)) {
-            int rawId = compound.getInteger(idKey);
-            if (rawId > 0) {
-                Potion potion = LegacyIds.potion(rawId);
-                compound.setInteger(idKey, potion == null ? -1 : Potion.getIdFromPotion(potion));
-                LegacyIds.writePotionName(compound, nameKey, potion);
-            }
-        }
     }
 
     public static void beforeTileEntityRead(TileEntity te, NBTTagCompound compound) {
@@ -281,7 +243,9 @@ public final class IdDataFixers {
         if (entity instanceof EntityFallingBlock falling && falling.getBlock() != null) {
             compound.setTag("BlockState", NBTUtil.writeBlockState(new NBTTagCompound(), falling.getBlock()));
         } else if (entity instanceof EntityEnderman enderman && enderman.getHeldBlockState() != null) {
-            compound.setTag("carriedState", NBTUtil.writeBlockState(new NBTTagCompound(), enderman.getHeldBlockState()));
+            compound.setTag(
+                "carriedState", NBTUtil.writeBlockState(new NBTTagCompound(), enderman.getHeldBlockState())
+            );
         } else if (entity instanceof EntityMinecart minecart && minecart.hasDisplayTile()) {
             compound.setTag("DisplayState", NBTUtil.writeBlockState(new NBTTagCompound(), minecart.getDisplayTile()));
         } else if (entity instanceof EntityVillager villager) {
@@ -297,9 +261,49 @@ public final class IdDataFixers {
         } else if (entity instanceof EntityArrow && compound.hasKey("inTile", 8)) {
             Block b = Block.getBlockFromName(compound.getString("inTile"));
             if (b != null) {
-                compound.setTag("inBlockState",
+                compound.setTag(
+                    "inBlockState",
                     NBTUtil.writeBlockState(new NBTTagCompound(), b.getStateFromMeta(compound.getByte("inData") & 0xFF))
                 );
+            }
+        }
+    }
+
+    private static void normalizeEnchantmentList(NBTTagCompound tag, String listKey) {
+        if (!tag.hasKey(listKey, 9)) {
+            return;
+        }
+        NBTTagList list = tag.getTagList(listKey, 10);
+        for (int i = 0; i < list.tagCount(); i++) {
+            NBTTagCompound entry = list.getCompoundTagAt(i);
+            if (entry.hasKey("id", 99)) {
+                int rawId = entry.getTagId("id") == 2 ? (entry.getShort("id") & 0xFFFF) : entry.getInteger("id");
+                Enchantment ench = entry.hasKey("name", 8)
+                    ? Enchantment.REGISTRY.getObject(new ResourceLocation(entry.getString("name")))
+                    : LegacyIds.enchantment(rawId);
+                if (ench != null) {
+                    entry.setInteger("id", Enchantment.getEnchantmentID(ench));
+                    ResourceLocation rl = Enchantment.REGISTRY.getNameForObject(ench);
+                    if (rl != null) {
+                        entry.setString("name", rl.toString());
+                    }
+                } else if (entry.getTagId("id") != 3) {
+                    entry.setInteger("id", rawId);
+                }
+            }
+        }
+    }
+
+    private static void fixBeaconEffectTag(NBTTagCompound compound, String nameKey, String idKey) {
+        if (compound.hasKey(nameKey, 8)) {
+            Potion potion = Potion.REGISTRY.getObject(new ResourceLocation(compound.getString(nameKey)));
+            compound.setInteger(idKey, potion == null ? -1 : Potion.getIdFromPotion(potion));
+        } else if (compound.hasKey(idKey, 99)) {
+            int rawId = compound.getInteger(idKey);
+            if (rawId > 0) {
+                Potion potion = LegacyIds.potion(rawId);
+                compound.setInteger(idKey, potion == null ? -1 : Potion.getIdFromPotion(potion));
+                LegacyIds.writePotionName(compound, nameKey, potion);
             }
         }
     }

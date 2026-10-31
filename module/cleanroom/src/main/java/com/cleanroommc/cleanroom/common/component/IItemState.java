@@ -29,8 +29,7 @@ public interface IItemState {
 
     <T extends Comparable<T>> T getValue(IProperty<T> property);
 
-    <T extends Comparable<T>,
-    V extends T> IItemState withProperty(IProperty<T> property, V value);
+    <T extends Comparable<T>, V extends T> IItemState withProperty(IProperty<T> property, V value);
 
     <T extends Comparable<T>> IItemState cycleProperty(IProperty<T> property);
 

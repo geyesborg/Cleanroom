@@ -160,7 +160,8 @@ public class ChunkBiomesTest {
             }
 
         };
-        WorldInfo info = new WorldInfo(new WorldSettings(0L, GameType.CREATIVE, false, false, WorldType.DEFAULT), "test"
+        WorldInfo info = new WorldInfo(
+            new WorldSettings(0L, GameType.CREATIVE, false, false, WorldType.DEFAULT), "test"
         );
         return new World(save, info, provider, new Profiler(), true) {
 
@@ -184,7 +185,8 @@ public class ChunkBiomesTest {
             biomes.set(0, Biome.getIdForBiome(Biomes.DESERT));
             int[] before = biomes.copy();
             assertThatThrownBy(() -> biomes.setLegacy(new byte[size])).isInstanceOf(IllegalArgumentException.class);
-            assertThatThrownBy(() -> biomes.setAllFromBytes(new byte[size])).isInstanceOf(IllegalArgumentException.class
+            assertThatThrownBy(() -> biomes.setAllFromBytes(new byte[size])).isInstanceOf(
+                IllegalArgumentException.class
             );
             assertThat(biomes.copy()).isEqualTo(before);
         }
@@ -444,7 +446,8 @@ public class ChunkBiomesTest {
         assertThat(nbtBack.getBiomeIds().get(3, 128, 5)).isEqualTo(plains);
 
         SPacketChunkData packet = new SPacketChunkData(chunk, 0xFFFF);
-        net.minecraft.network.PacketBuffer buf = new net.minecraft.network.PacketBuffer(io.netty.buffer.Unpooled.buffer()
+        net.minecraft.network.PacketBuffer buf = new net.minecraft.network.PacketBuffer(
+            io.netty.buffer.Unpooled.buffer()
         );
         packet.writePacketData(buf);
         SPacketChunkData readPacket = new SPacketChunkData();

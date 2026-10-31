@@ -64,7 +64,8 @@ public final class DataComponents {
             if (nbt instanceof NBTPrimitive) {
                 return ((NBTPrimitive) nbt).getInt();
             }
-            throw new ComponentFormatException("expected a numeric tag for an integer component, got " +
+            throw new ComponentFormatException(
+                "expected a numeric tag for an integer component, got " +
                     (nbt == null ? "null" : nbt.getClass().getSimpleName())
             );
         }
@@ -97,7 +98,8 @@ public final class DataComponents {
             if (nbt instanceof NBTTagCompound compound) {
                 return NBTUtil.readBlockState(compound);
             }
-            throw new ComponentFormatException("expected a compound tag for a block-state component, got " +
+            throw new ComponentFormatException(
+                "expected a compound tag for a block-state component, got " +
                     (nbt == null ? "null" : nbt.getClass().getSimpleName())
             );
         }
@@ -130,7 +132,8 @@ public final class DataComponents {
             if (nbt instanceof NBTTagCompound compound) {
                 return ItemStateContainer.readFromNBT(compound);
             }
-            throw new ComponentFormatException("expected a compound tag for an item-state component, got " +
+            throw new ComponentFormatException(
+                "expected a compound tag for an item-state component, got " +
                     (nbt == null ? "null" : nbt.getClass().getSimpleName())
             );
         }
@@ -152,32 +155,33 @@ public final class DataComponents {
     };
 
     /* Item durability damage; also the legacy {@code Damage} tag's destination on damageable items. */
-    public static final DataComponentType<Integer> DAMAGE = register("damage",
-        DataComponentType.<Integer>builder().persistent(INT_NBT).networkSynchronized(INT_NET)
+    public static final DataComponentType<Integer> DAMAGE = register(
+        "damage", DataComponentType.<Integer>builder().persistent(INT_NBT).networkSynchronized(INT_NET)
     );
     /* Maximum durability; a damageable item's prototype default. */
-    public static final DataComponentType<Integer> MAX_DAMAGE = register("max_damage",
-        DataComponentType.<Integer>builder().persistent(INT_NBT).networkSynchronized(INT_NET)
+    public static final DataComponentType<Integer> MAX_DAMAGE = register(
+        "max_damage", DataComponentType.<Integer>builder().persistent(INT_NBT).networkSynchronized(INT_NET)
     );
     /* Maximum stack size; every item's prototype default. */
-    public static final DataComponentType<Integer> MAX_STACK_SIZE = register("max_stack_size",
-        DataComponentType.<Integer>builder().persistent(INT_NBT).networkSynchronized(INT_NET)
+    public static final DataComponentType<Integer> MAX_STACK_SIZE = register(
+        "max_stack_size", DataComponentType.<Integer>builder().persistent(INT_NBT).networkSynchronized(INT_NET)
     );
     /* A non-damageable item's subtype number ΓÇö the legacy {@code Damage} tag's destination there. */
-    public static final DataComponentType<Integer> LEGACY_VARIANT = register("legacy_variant",
-        DataComponentType.<Integer>builder().persistent(INT_NBT).networkSynchronized(INT_NET)
+    public static final DataComponentType<Integer> LEGACY_VARIANT = register(
+        "legacy_variant", DataComponentType.<Integer>builder().persistent(INT_NBT).networkSynchronized(INT_NET)
     );
     /* Standalone {@link IBlockState} carried by an {@code ItemBlock} stack when the state is not expressible by legacy metadata. */
-    public static final DataComponentType<IBlockState> BLOCK_STATE = register("block_state",
-        DataComponentType.<IBlockState>builder().persistent(STATE_NBT).networkSynchronized(STATE_NET)
+    public static final DataComponentType<IBlockState> BLOCK_STATE = register(
+        "block_state", DataComponentType.<IBlockState>builder().persistent(STATE_NBT).networkSynchronized(STATE_NET)
     );
     /* Standalone {@link IItemState} carried by an {@code ItemStack}. */
-    public static final DataComponentType<IItemState> ITEM_STATE = register("item_state",
+    public static final DataComponentType<IItemState> ITEM_STATE = register(
+        "item_state",
         DataComponentType.<IItemState>builder().persistent(ITEM_STATE_NBT).networkSynchronized(ITEM_STATE_NET)
     );
     /* Map data number ({@code map_<id>}) for {@link net.minecraft.item.ItemMap}. */
-    public static final DataComponentType<Integer> MAP_ID = register("map_id",
-        DataComponentType.<Integer>builder().persistent(INT_NBT).networkSynchronized(INT_NET)
+    public static final DataComponentType<Integer> MAP_ID = register(
+        "map_id", DataComponentType.<Integer>builder().persistent(INT_NBT).networkSynchronized(INT_NET)
     );
 
     private DataComponents() { }
@@ -206,15 +210,13 @@ public final class DataComponents {
         }
     }
 
-    private static <T> void applyComponent(PatchedDataComponentMap target, DataComponentType<T> type,
-        DataComponentMap patch
-    ) {
+    private static <T> void applyComponent(
+        PatchedDataComponentMap target, DataComponentType<T> type, DataComponentMap patch) {
         target.set(type, patch.get(type));
     }
 
-    public static void writeNbt(PatchedDataComponentMap components, @Nullable NBTTagCompound unknownTags,
-        NBTTagCompound nbt
-    ) {
+    public static void writeNbt(
+        PatchedDataComponentMap components, @Nullable NBTTagCompound unknownTags, NBTTagCompound nbt) {
         NBTTagCompound componentTags = new NBTTagCompound();
         for (Map.Entry<DataComponentType<?>, Optional<?>> entry : components.asPatch().entrySet()) {
             DataComponentType<?> type = entry.getKey();
@@ -223,8 +225,8 @@ public final class DataComponents {
                 continue;
             }
             if (entry.getValue().isPresent()) {
-                componentTags.setTag(type.getRegistryName().toString(),
-                    writeComponentValue(codec, entry.getValue().get())
+                componentTags.setTag(
+                    type.getRegistryName().toString(), writeComponentValue(codec, entry.getValue().get())
                 );
             } else {
                 componentTags.setTag("!" + type.getRegistryName(), new NBTTagCompound());
@@ -241,9 +243,8 @@ public final class DataComponents {
     }
 
     @Nullable
-    public static NBTTagCompound readNbt(NBTTagCompound compound, PatchedDataComponentMap target,
-        @Nullable NBTTagCompound unknownTags
-    ) {
+    public static NBTTagCompound readNbt(
+        NBTTagCompound compound, PatchedDataComponentMap target, @Nullable NBTTagCompound unknownTags) {
         IForgeRegistry<DataComponentType<?>> registry = componentRegistry();
         Reference2ObjectArrayMap<DataComponentType<?>, Optional<?>> patch = new Reference2ObjectArrayMap<>();
         NBTTagCompound unknown = unknownTags;
@@ -274,9 +275,8 @@ public final class DataComponents {
                     patch.put(type, Optional.of(readComponentValue(type.nbtCodec(), compound.getTag(key))));
                 } catch (Exception e) {
                     if (COMPONENT_WARNINGS.add(name)) {
-                        CleanroomLog.get().warn("Dropping data component {}: its NbtCodec could not read the saved value",
-                            name
-                        );
+                        CleanroomLog.get()
+                            .warn("Dropping data component {}: its NbtCodec could not read the saved value", name);
                     }
                 }
             }
@@ -353,11 +353,11 @@ public final class DataComponents {
     }
 
     @SuppressWarnings("deprecation")
-    public static boolean matchesPatchedComponents(ItemStack template, ItemStack candidate,
-        boolean ignoreStateComponents
-    ) {
+    public static boolean matchesPatchedComponents(
+        ItemStack template, ItemStack candidate, boolean ignoreStateComponents) {
         if (!ignoreStateComponents && template.getMetadata() != 32767) {
-            if (!Objects.equals(template.getComponents().get(BLOCK_STATE), candidate.getComponents().get(BLOCK_STATE)
+            if (!Objects.equals(
+                    template.getComponents().get(BLOCK_STATE), candidate.getComponents().get(BLOCK_STATE)
                 ) ||
                 !Objects.equals(template.getComponents().get(ITEM_STATE), candidate.getComponents().get(ITEM_STATE))) {
                 return false;

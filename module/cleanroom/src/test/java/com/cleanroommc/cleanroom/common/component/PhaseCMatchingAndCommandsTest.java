@@ -65,8 +65,9 @@ class PhaseCMatchingAndCommandsTest {
 
     @Test
     void inlineBlockStateSpecExtracts() {
-        assertThat(CommandBase.extractInlineBlockStateSpec("minecraft:stone[variant=granite]"
-        )).isEqualTo("variant=granite");
+        assertThat(CommandBase.extractInlineBlockStateSpec("minecraft:stone[variant=granite]")).isEqualTo(
+            "variant=granite"
+        );
         assertThat(CommandBase.extractInlineBlockStateSpec("minecraft:stone")).isNull();
     }
 
@@ -129,13 +130,13 @@ class PhaseCMatchingAndCommandsTest {
         java.util.List<String> summary = com.cleanroommc.cleanroom.common.id.CommandRegistry.countAll();
         assertThat(summary.isEmpty()).isFalse();
         assertThat(summary.stream().anyMatch(s -> s.startsWith("cleanroom:data_component_types has "))).isTrue();
-        ItemStack redWool = net.minecraftforge.fml.common.registry.GameRegistry.makeItemStack("minecraft:wool[color=red]",
-            0, 1, null
+        ItemStack redWool = net.minecraftforge.fml.common.registry.GameRegistry.makeItemStack(
+            "minecraft:wool[color=red]", 0, 1, null
         );
         assertThat(redWool.getMetadata()).isEqualTo(14);
         assertThat(DataComponentPredicate.parseBracketSpec("[color=red]").test(redWool)).isTrue();
-        ItemStack charcoal = net.minecraftforge.fml.common.registry.GameRegistry.makeItemStack("minecraft:coal[type=charcoal]",
-            0, 1, null
+        ItemStack charcoal = net.minecraftforge.fml.common.registry.GameRegistry.makeItemStack(
+            "minecraft:coal[type=charcoal]", 0, 1, null
         );
         assertThat(charcoal.getMetadata()).isEqualTo(1);
         assertThat(DataComponentPredicate.parseBracketSpec("[type=charcoal]").test(charcoal)).isTrue();

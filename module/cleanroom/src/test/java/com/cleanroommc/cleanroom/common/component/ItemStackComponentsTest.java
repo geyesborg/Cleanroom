@@ -66,7 +66,8 @@ public class ItemStackComponentsTest {
             modComponent.setRegistryName(new ResourceLocation("test", "charge"));
             IForgeRegistry<DataComponentType<?>> registry = componentRegistry();
             if (registry.getValue(new ResourceLocation("cleanroom", "damage")) == null) {
-                registry.registerAll(DataComponents.DAMAGE, DataComponents.MAX_DAMAGE, DataComponents.MAX_STACK_SIZE,
+                registry.registerAll(
+                    DataComponents.DAMAGE, DataComponents.MAX_DAMAGE, DataComponents.MAX_STACK_SIZE,
                     DataComponents.LEGACY_VARIANT
                 );
             }
@@ -108,7 +109,8 @@ public class ItemStackComponentsTest {
         tool.set(DataComponents.DAMAGE, 50);
         assertThat(tool.getItemDamage()).isEqualTo(50);
         assertThat(tool.getComponents().asPatch().isEmpty()).isTrue();
-        assertThat(tool.getComponents().isEmpty() || !tool.getComponents().asPatch().containsKey(DataComponents.DAMAGE)
+        assertThat(
+            tool.getComponents().isEmpty() || !tool.getComponents().asPatch().containsKey(DataComponents.DAMAGE)
         ).isTrue();
 
         // a saved stack with no real patch writes no Components compound
@@ -120,7 +122,8 @@ public class ItemStackComponentsTest {
     @Test
     public void virtualSetAndRemoveValidateRouting() {
         ItemStack tool = new ItemStack(pick, 1);
-        assertThatThrownBy(() -> tool.set(DataComponents.LEGACY_VARIANT, 3)).isInstanceOf(IllegalArgumentException.class
+        assertThatThrownBy(() -> tool.set(DataComponents.LEGACY_VARIANT, 3)).isInstanceOf(
+            IllegalArgumentException.class
         );
         assertThatThrownBy(() -> tool.remove(DataComponents.DAMAGE)).isInstanceOf(IllegalArgumentException.class);
 

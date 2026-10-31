@@ -95,10 +95,12 @@ public class CleanroomContainer extends DummyModContainer implements WorldAccess
         if (remoteMods.isEmpty()) {
             return false;
         }
-        CleanroomLog.get().error("Cleanroom ID format mismatch: this side uses network format {}, the {} uses {}.",
-            advertisedFormat(), remoteSide == Side.SERVER ? "server" : "client",
-            remote == null ? "none (vanilla, Forge or an older Cleanroom)" : "format " + remote
-        );
+        CleanroomLog.get()
+            .error(
+                "Cleanroom ID format mismatch: this side uses network format {}, the {} uses {}.", advertisedFormat(),
+                remoteSide == Side.SERVER ? "server" : "client",
+                remote == null ? "none (vanilla, Forge or an older Cleanroom)" : "format " + remote
+            );
         return false;
     }
 
@@ -108,7 +110,8 @@ public class CleanroomContainer extends DummyModContainer implements WorldAccess
             return false;
         }
         for (File dir : dirs) {
-            File[] regions = (dir.getName().equals("region") ? dir : new File(dir, "region")).listFiles((d, name
+            File[] regions = (dir.getName().equals("region") ? dir : new File(dir, "region")).listFiles((
+                d, name
             ) -> name.endsWith(".mca"));
             if (regions != null && regions.length > 0) {
                 return true;
@@ -150,9 +153,18 @@ public class CleanroomContainer extends DummyModContainer implements WorldAccess
         checkFormat(handler.getWorldDirectory(), effectiveTag);
     }
 
+    @Override
+    public URL getUpdateUrl() {
+        try {
+            return new URI("https://download.cleanroommc.com/api/forge").toURL();
+        } catch (MalformedURLException | URISyntaxException ignored) { }
+        return null;
+    }
+
     private void checkFormat(File world, NBTTagCompound tag) {
         if (tag.hasKey("Format") && !tag.hasKey("Format", 8)) {
-            throw new IllegalStateException("World " + world.getName() +
+            throw new IllegalStateException(
+                "World " + world.getName() +
                     " has a non-string Cleanroom ID format in level.dat (cleanroom.Format); restore level.dat from level.dat_old or a backup."
             );
         }
@@ -165,38 +177,33 @@ public class CleanroomContainer extends DummyModContainer implements WorldAccess
             try {
                 format = Integer.parseInt(saved);
             } catch (NumberFormatException e) {
-                throw new IllegalStateException("World " + world.getName() +
-                        " has an unreadable Cleanroom ID format \"" + saved +
+                throw new IllegalStateException(
+                    "World " + world.getName() + " has an unreadable Cleanroom ID format \"" + saved +
                         "\" in level.dat (cleanroom.Format); restore level.dat from level.dat_old or a backup.",
                     e
                 );
             }
             if (format <= 0) {
-                throw new IllegalStateException("World " + world.getName() + " has an invalid Cleanroom ID format " +
-                        saved + " in level.dat (cleanroom.Format); format numbers must be positive."
+                throw new IllegalStateException(
+                    "World " + world.getName() + " has an invalid Cleanroom ID format " + saved +
+                        " in level.dat (cleanroom.Format); format numbers must be positive."
                 );
             }
             if (format > Integer.parseInt(SAVE_FORMAT)) {
-                throw new IllegalStateException("World " + world.getName() + " was saved with Cleanroom ID format " +
-                        saved + "; this Cleanroom reads format " + SAVE_FORMAT + " and older."
+                throw new IllegalStateException(
+                    "World " + world.getName() + " was saved with Cleanroom ID format " + saved +
+                        "; this Cleanroom reads format " + SAVE_FORMAT + " and older."
                 );
             }
         }
         if (!hasChunks(world)) {
             return;
         }
-        CleanroomLog.get().info(
-            "World {} was saved before Cleanroom ID format {}: its chunks are converted as they are saved. An older Cleanroom, Forge, JEID, REID or NEID cannot load it afterwards.",
-            world.getName(), SAVE_FORMAT
-        );
-    }
-
-    @Override
-    public URL getUpdateUrl() {
-        try {
-            return new URI("https://download.cleanroommc.com/api/forge").toURL();
-        } catch (MalformedURLException | URISyntaxException ignored) { }
-        return null;
+        CleanroomLog.get()
+            .info(
+                "World {} was saved before Cleanroom ID format {}: its chunks are converted as they are saved. An older Cleanroom, Forge, JEID, REID or NEID cannot load it afterwards.",
+                world.getName(), SAVE_FORMAT
+            );
     }
 
 }

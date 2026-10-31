@@ -39,20 +39,20 @@ public class IdFormatContainerTest {
 
     @Test
     public void acceptsTheSameFormat() {
-        assertThat(CleanroomContainer.checkRemote(Map.of(CleanroomContainer.MOD_ID, CleanroomContainer.NETWORK_FORMAT,
-                "forge", "14.23.5.2847"
-            ),
+        assertThat(CleanroomContainer.checkRemote(
+            Map.of(CleanroomContainer.MOD_ID, CleanroomContainer.NETWORK_FORMAT, "forge", "14.23.5.2847"),
             Side.SERVER
         )).isTrue();
-        assertThat(CleanroomContainer.checkRemote(Map.of(CleanroomContainer.MOD_ID, CleanroomContainer.NETWORK_FORMAT),
-            Side.CLIENT
+        assertThat(CleanroomContainer.checkRemote(
+            Map.of(CleanroomContainer.MOD_ID, CleanroomContainer.NETWORK_FORMAT), Side.CLIENT
         )).isTrue();
     }
 
     @Test
     public void rejectsOtherFormatsAndPeersWithoutIt() {
         assertThat(CleanroomContainer.checkRemote(Map.of(CleanroomContainer.MOD_ID, "0"), Side.SERVER)).isFalse();
-        assertThat(CleanroomContainer.checkRemote(Map.of("cleanroom", "0.6.14", "forge", "14.23.5.2847"), Side.CLIENT
+        assertThat(CleanroomContainer.checkRemote(
+            Map.of("cleanroom", "0.6.14", "forge", "14.23.5.2847"), Side.CLIENT
         )).isFalse();
         assertThat(CleanroomContainer.checkRemote(Map.of(), Side.SERVER)).isFalse();
     }

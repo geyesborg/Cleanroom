@@ -112,11 +112,13 @@ public final class ChunkBiomes {
         if (!WARNED_WRITERS.add(writer)) {
             return;
         }
-        CleanroomLog.get().warn("{} wrote biome byte {} into Chunk.getBiomeArray(); {} biomes share that low byte and none is in this chunk or placed here by the biome provider. Using {} ({}). " +
-                "A byte cannot hold a biome id past 255: this mod needs Chunk.getBiomeIds().set(x, z, id). Logged once per mod.",
-            writer, lowByte, candidates.length, candidates[0],
-            Biome.getBiome(candidates[0]) == null ? "?" : Biome.getBiome(candidates[0]).getRegistryName()
-        );
+        CleanroomLog.get()
+            .warn(
+                "{} wrote biome byte {} into Chunk.getBiomeArray(); {} biomes share that low byte and none is in this chunk or placed here by the biome provider. Using {} ({}). " +
+                    "A byte cannot hold a biome id past 255: this mod needs Chunk.getBiomeIds().set(x, z, id). Logged once per mod.",
+                writer, lowByte, candidates.length, candidates[0],
+                Biome.getBiome(candidates[0]) == null ? "?" : Biome.getBiome(candidates[0]).getRegistryName()
+            );
     }
 
     /* The first stack frame outside Minecraft, Forge and Cleanroom: the mod that wrote the byte. */
@@ -183,15 +185,6 @@ public final class ChunkBiomes {
         }
     }
 
-    private void expandTo16Layers() {
-        int[] expanded = new int[MAX_LAYERS * SIZE];
-        for (int layer = 0; layer < MAX_LAYERS; layer++) {
-            System.arraycopy(ids, 0, expanded, layer << 8, SIZE);
-        }
-        ids = expanded;
-        layers = MAX_LAYERS;
-    }
-
     public int[] copy() {
         return ids.clone();
     }
@@ -213,8 +206,8 @@ public final class ChunkBiomes {
                 int x = i & 15;
                 int z = (i >> 4) & 15;
                 int y = (i >> 8) << 4;
-                ids[i] = Biome.getIdForBiome(provider.getBiome(new BlockPos((chunk.x << 4) | x, y, (chunk.z << 4) | z),
-                    Biomes.PLAINS
+                ids[i] = Biome.getIdForBiome(provider.getBiome(
+                    new BlockPos((chunk.x << 4) | x, y, (chunk.z << 4) | z), Biomes.PLAINS
                 ));
             }
         }
@@ -222,8 +215,8 @@ public final class ChunkBiomes {
 
     public void setAll(int[] newIds) {
         if (newIds.length != SIZE && newIds.length != MAX_LAYERS * SIZE) {
-            throw new IllegalArgumentException("Chunk biomes need " + SIZE + " or " + (MAX_LAYERS * SIZE) +
-                    " ids, got " + newIds.length + "."
+            throw new IllegalArgumentException(
+                "Chunk biomes need " + SIZE + " or " + (MAX_LAYERS * SIZE) + " ids, got " + newIds.length + "."
             );
         }
         layers = newIds.length / SIZE;
@@ -236,7 +229,8 @@ public final class ChunkBiomes {
     /* Old-format bytes, which are full ids (worlds from before the format held at most 256 biomes). */
     public void setLegacy(byte[] bytes) {
         if (bytes.length != SIZE) {
-            throw new IllegalArgumentException("Legacy chunk biomes need " + SIZE + " bytes, got " + bytes.length + "."
+            throw new IllegalArgumentException(
+                "Legacy chunk biomes need " + SIZE + " bytes, got " + bytes.length + "."
             );
         }
         int[] newIds = new int[SIZE];
@@ -297,48 +291,6 @@ public final class ChunkBiomes {
             resolvedId = low == 0xFF ? UNSET : resolve(low, col);
         }
         set(col & 15, col >> 4, resolvedId);
-    }
-
-    private int resolve(int lowByte, int index) {
-        int[] candidates = GameData.getBiomeIdsWithLowByte(lowByte);
-        if (candidates.length <= 1) {
-            return candidates.length == 0 ? UNSET : candidates[0];
-        }
-        int present = candidatePresentInChunk(candidates);
-        if (present != UNSET) {
-            return present;
-        }
-        World world = chunk.getWorld();
-        if (world != null && !world.isRemote) {
-            BlockPos pos = new BlockPos(chunk.x << 4 | index & 15, 64, chunk.z << 4 | index >> 4);
-            int generated = Biome.getIdForBiome(world.getBiomeProvider().getBiome(pos, null));
-            for (int candidate : candidates) {
-                if (candidate == generated) {
-                    return candidate;
-                }
-            }
-        }
-        warnAmbiguous(lowByte, candidates);
-        return candidates[0];
-    }
-
-    /* The candidate already used by another column of this chunk, if exactly one of them is. */
-    private int candidatePresentInChunk(int[] candidates) {
-        int found = UNSET;
-        for (int id : ids) {
-            if (id == UNSET) {
-                continue;
-            }
-            for (int candidate : candidates) {
-                if (id == candidate) {
-                    if (found != UNSET && found != id) {
-                        return UNSET; // two candidates both present: the byte is ambiguous even within the chunk
-                    }
-                    found = id;
-                }
-            }
-        }
-        return found;
     }
 
     public void writeNBT(NBTTagCompound chunkTag) {
@@ -410,8 +362,9 @@ public final class ChunkBiomes {
             } else if (chunkTag.hasKey(INDICES, 11)) {
                 int[] indices = chunkTag.getIntArray(INDICES);
                 if (indices.length != total) {
-                    throw corrupt("has " + byIndex.length + " biome palette entries but no " + total + "-int " +
-                            INDICES + " array"
+                    throw corrupt(
+                        "has " + byIndex.length + " biome palette entries but no " + total + "-int " + INDICES +
+                            " array"
                     );
                 }
                 for (int i = 0; i < total; i++) {
@@ -424,8 +377,9 @@ public final class ChunkBiomes {
             } else {
                 byte[] indices = chunkTag.getByteArray(INDICES);
                 if (indices.length != total) {
-                    throw corrupt("has " + byIndex.length + " biome palette entries but no " + total + "-byte " +
-                            INDICES + " array"
+                    throw corrupt(
+                        "has " + byIndex.length + " biome palette entries but no " + total + "-byte " + INDICES +
+                            " array"
                     );
                 }
                 for (int i = 0; i < total; i++) {
@@ -451,6 +405,57 @@ public final class ChunkBiomes {
             return true;
         }
         return false;
+    }
+
+    private void expandTo16Layers() {
+        int[] expanded = new int[MAX_LAYERS * SIZE];
+        for (int layer = 0; layer < MAX_LAYERS; layer++) {
+            System.arraycopy(ids, 0, expanded, layer << 8, SIZE);
+        }
+        ids = expanded;
+        layers = MAX_LAYERS;
+    }
+
+    private int resolve(int lowByte, int index) {
+        int[] candidates = GameData.getBiomeIdsWithLowByte(lowByte);
+        if (candidates.length <= 1) {
+            return candidates.length == 0 ? UNSET : candidates[0];
+        }
+        int present = candidatePresentInChunk(candidates);
+        if (present != UNSET) {
+            return present;
+        }
+        World world = chunk.getWorld();
+        if (world != null && !world.isRemote) {
+            BlockPos pos = new BlockPos(chunk.x << 4 | index & 15, 64, chunk.z << 4 | index >> 4);
+            int generated = Biome.getIdForBiome(world.getBiomeProvider().getBiome(pos, null));
+            for (int candidate : candidates) {
+                if (candidate == generated) {
+                    return candidate;
+                }
+            }
+        }
+        warnAmbiguous(lowByte, candidates);
+        return candidates[0];
+    }
+
+    /* The candidate already used by another column of this chunk, if exactly one of them is. */
+    private int candidatePresentInChunk(int[] candidates) {
+        int found = UNSET;
+        for (int id : ids) {
+            if (id == UNSET) {
+                continue;
+            }
+            for (int candidate : candidates) {
+                if (id == candidate) {
+                    if (found != UNSET && found != id) {
+                        return UNSET; // two candidates both present: the byte is ambiguous even within the chunk
+                    }
+                    found = id;
+                }
+            }
+        }
+        return found;
     }
 
     private IllegalStateException corrupt(String problem) {

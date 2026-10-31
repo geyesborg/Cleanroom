@@ -79,7 +79,8 @@ public final class DataComponentType<T> extends IForgeRegistryEntry.Impl<DataCom
 
         public DataComponentType<T> build() {
             if (nbtCodec == null && netCodec == null) {
-                throw new IllegalStateException("A data component type needs at least one codec: persistent(NbtCodec) and/or networkSynchronized(NetCodec)"
+                throw new IllegalStateException(
+                    "A data component type needs at least one codec: persistent(NbtCodec) and/or networkSynchronized(NetCodec)"
                 );
             }
             return new DataComponentType<>(nbtCodec, netCodec);

@@ -152,9 +152,9 @@ public class DataComponentMapTest {
     public void intCodecRoundTrips() throws Exception {
         assertThat(DataComponents.DAMAGE.nbtCodec().write(5)).isEqualTo(new NBTTagInt(5));
         assertThat((int) DataComponents.DAMAGE.nbtCodec().read(new NBTTagInt(5))).isEqualTo(5);
-        assertThatThrownBy(() -> DataComponents.DAMAGE
-            .nbtCodec()
-            .read(new NBTTagCompound())).isInstanceOf(ComponentFormatException.class);
+        assertThatThrownBy(() -> DataComponents.DAMAGE.nbtCodec().read(new NBTTagCompound())).isInstanceOf(
+            ComponentFormatException.class
+        );
 
         PacketBuffer buf = new PacketBuffer(Unpooled.buffer());
         DataComponents.DAMAGE.netCodec().write(buf, 70000);
@@ -168,7 +168,8 @@ public class DataComponentMapTest {
         IForgeRegistry<DataComponentType<?>> components = dataComponents();
         assertThat(components).isNotNull();
         if (components.getValue(new ResourceLocation("cleanroom", "damage")) == null) {
-            components.registerAll(DataComponents.DAMAGE, DataComponents.MAX_DAMAGE, DataComponents.MAX_STACK_SIZE,
+            components.registerAll(
+                DataComponents.DAMAGE, DataComponents.MAX_DAMAGE, DataComponents.MAX_STACK_SIZE,
                 DataComponents.LEGACY_VARIANT
             );
         }

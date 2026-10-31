@@ -39,8 +39,8 @@ public class WideProfessionTest {
     public void professionsPast1024KeepTheirIdThroughRegistryAndSync() throws IOException {
         VillagerProfession last = null;
         for (int i = 0; i < 1100; i++) {
-            last = new VillagerProfession("wideids_test:profession_" + i,
-                "minecraft:textures/entity/villager/farmer.png",
+            last = new VillagerProfession(
+                "wideids_test:profession_" + i, "minecraft:textures/entity/villager/farmer.png",
                 "minecraft:textures/entity/zombie_villager/zombie_farmer.png"
             );
             ForgeRegistries.VILLAGER_PROFESSIONS.register(last);

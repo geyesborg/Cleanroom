@@ -92,8 +92,8 @@ public class ItemBlockBridgeTest {
     public void placementFollowsTheMetaPath() {
         IBlockState state = layered.getDefaultState().withProperty(LAYER, 2);
         ItemStack stack = layeredItem.stackFor(state);
-        IBlockState placed = layered.getStateForPlacement(null, BlockPos.ORIGIN, EnumFacing.UP, 0.5F, 0.5F, 0.5F, stack,
-            null, EnumHand.MAIN_HAND
+        IBlockState placed = layered.getStateForPlacement(
+            null, BlockPos.ORIGIN, EnumFacing.UP, 0.5F, 0.5F, 0.5F, stack, null, EnumHand.MAIN_HAND
         );
         // the stack's L resolves through ItemBlock.getMetadata -> getStateFromMeta, nothing else
         assertThat(placed).isEqualTo(layered.getDefaultState());
@@ -108,8 +108,8 @@ public class ItemBlockBridgeTest {
         assertThat(viaStackFor.getComponents().asPatch().isEmpty()).isTrue();
         assertThat(viaStackFor.writeToNBT(new NBTTagCompound())).isEqualTo(legacy.writeToNBT(new NBTTagCompound()));
 
-        IBlockState placed = plain.getStateForPlacement(null, BlockPos.ORIGIN, EnumFacing.UP, 0.5F, 0.5F, 0.5F,
-            viaStackFor, null, EnumHand.MAIN_HAND
+        IBlockState placed = plain.getStateForPlacement(
+            null, BlockPos.ORIGIN, EnumFacing.UP, 0.5F, 0.5F, 0.5F, viaStackFor, null, EnumHand.MAIN_HAND
         );
         assertThat(placed).isEqualTo(state);
     }
@@ -122,8 +122,8 @@ public class ItemBlockBridgeTest {
         stack.set(DataComponents.BLOCK_STATE, state);
         ItemStack reloaded = new ItemStack(stack.writeToNBT(new NBTTagCompound()));
         assertThat(reloaded.get(DataComponents.BLOCK_STATE)).isEqualTo(state);
-        IBlockState placed = layered.getStateForPlacement(null, BlockPos.ORIGIN, EnumFacing.UP, 0.5F, 0.5F, 0.5F,
-            reloaded, null, EnumHand.MAIN_HAND
+        IBlockState placed = layered.getStateForPlacement(
+            null, BlockPos.ORIGIN, EnumFacing.UP, 0.5F, 0.5F, 0.5F, reloaded, null, EnumHand.MAIN_HAND
         );
         assertThat(placed).isEqualTo(state);
 
@@ -149,11 +149,6 @@ public class ItemBlockBridgeTest {
         }
 
         @Override
-        protected BlockStateContainer createBlockState() {
-            return new BlockStateContainer(this, LAYER);
-        }
-
-        @Override
         public int getMetaFromState(IBlockState state) {
             return 0; // meta deliberately does NOT encode the property: nothing carries it to the item
         }
@@ -166,6 +161,11 @@ public class ItemBlockBridgeTest {
         @Override
         public int damageDropped(IBlockState state) {
             return state.getValue(LAYER);
+        }
+
+        @Override
+        protected BlockStateContainer createBlockState() {
+            return new BlockStateContainer(this, LAYER);
         }
 
     }

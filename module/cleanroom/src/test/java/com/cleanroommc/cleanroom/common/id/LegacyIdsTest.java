@@ -87,9 +87,9 @@ public class LegacyIdsTest {
 
     private static Enchantment ench() {
         if (!ForgeRegistries.ENCHANTMENTS.containsKey(ENCH)) {
-            Enchantment enchantment = new Enchantment(Enchantment.Rarity.RARE, EnumEnchantmentType.ALL,
-                new EntityEquipmentSlot[] { EntityEquipmentSlot.MAINHAND }
-            ) { };
+            Enchantment enchantment = new Enchantment(
+                Enchantment.Rarity.RARE, EnumEnchantmentType.ALL,
+                new EntityEquipmentSlot[] { EntityEquipmentSlot.MAINHAND }) { };
             enchantment.setRegistryName(ENCH);
             ForgeRegistries.ENCHANTMENTS.register(enchantment);
         }

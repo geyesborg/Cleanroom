@@ -106,15 +106,17 @@ public class WideItemDataTest {
         assertThat(back.getItemDamage()).isEqualTo(40000);
         Map<Enchantment, Integer> enchantments = EnchantmentHelper.getEnchantments(back);
         assertThat((int) enchantments.get(Enchantments.SHARPNESS)).isEqualTo(3);
-        assertThat(tag.getCompoundTag("tag").getTagList("ench", 10).getCompoundTagAt(0).getTagId("id")
-        ).isEqualTo((byte) 3);
+        assertThat(tag.getCompoundTag("tag").getTagList("ench", 10).getCompoundTagAt(0).getTagId("id")).isEqualTo(
+            (byte) 3
+        );
     }
 
     @Test
     public void potionEffectsRoundTrip() {
         PotionEffect effect = new PotionEffect(MobEffects.HASTE, 200, 1);
-        PotionEffect back = PotionEffect.readCustomPotionEffectFromNBT(
-            effect.writeCustomPotionEffectToNBT(new NBTTagCompound()));
+        PotionEffect back = PotionEffect.readCustomPotionEffectFromNBT(effect.writeCustomPotionEffectToNBT(
+            new NBTTagCompound()
+        ));
         assertThat(back.getPotion()).isSameAs(MobEffects.HASTE);
         assertThat(back.getAmplifier()).isEqualTo(1);
     }
@@ -164,24 +166,29 @@ public class WideItemDataTest {
 
     @Test
     public void jukeboxComparatorSignalClampsModdedRecordsToRedstoneRange() {
-        net.minecraft.util.ResourceLocation modDiscName = new net.minecraft.util.ResourceLocation("wideids_test",
-            "mod_disc"
+        net.minecraft.util.ResourceLocation modDiscName = new net.minecraft.util.ResourceLocation(
+            "wideids_test", "mod_disc"
         );
         if (!net.minecraftforge.fml.common.registry.ForgeRegistries.ITEMS.containsKey(modDiscName)) {
             net.minecraftforge.fml.common.registry.ForgeRegistries.ITEMS.register(
                 new net.minecraft.item.Item().setRegistryName(modDiscName));
         }
-        net.minecraft.item.Item modDisc = net.minecraftforge.fml.common.registry.ForgeRegistries.ITEMS.getValue(modDiscName
+        net.minecraft.item.Item modDisc = net.minecraftforge.fml.common.registry.ForgeRegistries.ITEMS.getValue(
+            modDiscName
         );
         int unclamped = net.minecraft.item.Item.getIdFromItem(modDisc) -
             net.minecraft.item.Item.getIdFromItem(Items.RECORD_13) + 1;
         assertThat(unclamped < 1 || unclamped > 15).isTrue();
 
         net.minecraft.block.BlockJukebox.TileEntityJukebox te = new net.minecraft.block.BlockJukebox.TileEntityJukebox();
-        net.minecraft.world.World dummyWorld = new net.minecraft.world.World(null,
-            new net.minecraft.world.storage.WorldInfo(new net.minecraft.nbt.NBTTagCompound()),
-            new net.minecraft.world.WorldProviderSurface(), new net.minecraft.profiler.Profiler(), false
-        ) {
+        net.minecraft.world.World dummyWorld = new net.minecraft.world.World(
+            null, new net.minecraft.world.storage.WorldInfo(new net.minecraft.nbt.NBTTagCompound()),
+            new net.minecraft.world.WorldProviderSurface(), new net.minecraft.profiler.Profiler(), false) {
+
+            @Override
+            public net.minecraft.tileentity.TileEntity getTileEntity(net.minecraft.util.math.BlockPos pos) {
+                return te;
+            }
 
             @Override
             protected net.minecraft.world.chunk.IChunkProvider createChunkProvider() {
@@ -193,28 +200,23 @@ public class WideItemDataTest {
                 return true;
             }
 
-            @Override
-            public net.minecraft.tileentity.TileEntity getTileEntity(net.minecraft.util.math.BlockPos pos) {
-                return te;
-            }
-
         };
 
         te.setRecord(new ItemStack(Items.RECORD_13));
-        assertThat(
-            net.minecraft.init.Blocks.JUKEBOX.getComparatorInputOverride(net.minecraft.init.Blocks.JUKEBOX.getDefaultState(),
-                dummyWorld, net.minecraft.util.math.BlockPos.ORIGIN
-            )).isEqualTo(1);
+        assertThat(net.minecraft.init.Blocks.JUKEBOX.getComparatorInputOverride(
+            net.minecraft.init.Blocks.JUKEBOX.getDefaultState(), dummyWorld,
+            net.minecraft.util.math.BlockPos.ORIGIN
+        )).isEqualTo(1);
 
         te.setRecord(new ItemStack(Items.RECORD_WAIT));
-        assertThat(
-            net.minecraft.init.Blocks.JUKEBOX.getComparatorInputOverride(net.minecraft.init.Blocks.JUKEBOX.getDefaultState(),
-                dummyWorld, net.minecraft.util.math.BlockPos.ORIGIN
-            )).isEqualTo(12);
+        assertThat(net.minecraft.init.Blocks.JUKEBOX.getComparatorInputOverride(
+            net.minecraft.init.Blocks.JUKEBOX.getDefaultState(), dummyWorld,
+            net.minecraft.util.math.BlockPos.ORIGIN
+        )).isEqualTo(12);
 
         te.setRecord(new ItemStack(modDisc));
-        int moddedSignal = net.minecraft.init.Blocks.JUKEBOX.getComparatorInputOverride(net.minecraft.init.Blocks.JUKEBOX.getDefaultState(),
-            dummyWorld, net.minecraft.util.math.BlockPos.ORIGIN
+        int moddedSignal = net.minecraft.init.Blocks.JUKEBOX.getComparatorInputOverride(
+            net.minecraft.init.Blocks.JUKEBOX.getDefaultState(), dummyWorld, net.minecraft.util.math.BlockPos.ORIGIN
         );
         assertThat(moddedSignal).isBetween(1, 15);
     }
