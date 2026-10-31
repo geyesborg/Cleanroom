@@ -8,11 +8,9 @@
  * This is visible-source software and is not open-source software.
  */
 
-package com.cleanroommc.client;
+package net.minecraftforge.fml.client;
 
-import com.cleanroommc.cleanroom.common.id.IncompatibleIdModsException;
-
-import net.minecraftforge.fml.client.GuiErrorBase;
+import net.minecraftforge.fml.common.IncompatibleIdModsException;
 
 import java.io.File;
 

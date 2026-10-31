@@ -12,7 +12,6 @@ package com.cleanroommc.discovery;
 
 import com.cleanroommc.cleanmix.CleanMixModContainer;
 import com.cleanroommc.cleanmix.MixinConfiguration;
-import com.cleanroommc.cleanroom.common.id.IncompatibleIdModsException;
 import com.cleanroommc.common.CleanroomContainer;
 import com.cleanroommc.common.CleanroomEnvironment;
 import com.cleanroommc.common.ConfigAnytimeContainer;
@@ -186,14 +185,12 @@ public final class CleanroomModDiscoverer extends ModDiscoverer {
     }
 
     /**
-     * Stops launching once mods are identified if a mod that conflicts with wide IDs was found.
+     * Returns the installed mods that conflict with wide IDs, which were not loaded.
      *
-     * @throws IncompatibleIdModsException listing the conflicting mods
+     * @return the conflicting mods' loading plugin class names mapped to their files
      */
-    public void checkIncompatibleIdMods() {
-        if (!incompatibleIdMods.isEmpty()) {
-            throw new IncompatibleIdModsException(incompatibleIdMods);
-        }
+    public Map<String, File> incompatibleIdMods() {
+        return Collections.unmodifiableMap(incompatibleIdMods);
     }
 
     private static boolean isCorePluginBlacklisted(String fmlCorePlugin) {

@@ -494,7 +494,10 @@ public class Loader
         injectedContainers.addAll(injectedModContainers);
         discoverer = CleanroomModDiscoverer.instance();
         discoverer.addBuiltInModContainers(mods, minecraft, mcp);
-        discoverer.checkIncompatibleIdMods();
+        if (!discoverer.incompatibleIdMods().isEmpty())
+        {
+            throw new IncompatibleIdModsException(discoverer.incompatibleIdMods());
+        }
         IdentifiedMods identifiedMods = discoverer.identifyMods(modClassLoader, injectedContainers, mods);
         mods = identifiedMods.mods();
         identifyDuplicates(mods);

@@ -8,13 +8,11 @@
  * This is visible-source software and is not open-source software.
  */
 
-package com.cleanroommc.cleanroom.common.id;
-
-import com.cleanroommc.client.GuiIncompatibleIdMods;
+package net.minecraftforge.fml.common;
 
 import net.minecraft.client.gui.GuiScreen;
+import net.minecraftforge.fml.client.GuiIncompatibleIdMods;
 import net.minecraftforge.fml.client.IDisplayableError;
-import net.minecraftforge.fml.common.LoaderException;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 
