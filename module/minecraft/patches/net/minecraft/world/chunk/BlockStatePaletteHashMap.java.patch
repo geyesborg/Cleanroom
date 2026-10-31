@@ -1,6 +1,18 @@
 --- original/net/minecraft/world/chunk/BlockStatePaletteHashMap.java
 +++ modified/net/minecraft/world/chunk/BlockStatePaletteHashMap.java
-@@ -46,7 +46,7 @@
+@@ -35,6 +35,11 @@
+     /** Gets the block state by the palette id. */
+     @Nullable
+     @Override
++    public int paletteSize() {
++        return this.statePaletteMap.size();
++    }
++
++    @Override
+     public IBlockState getBlockState(int indexKey) {
+         return this.statePaletteMap.get(indexKey);
+     }
+@@ -46,7 +51,7 @@
          int i = buf.readVarInt();
  
          for (int j = 0; j < i; j++) {

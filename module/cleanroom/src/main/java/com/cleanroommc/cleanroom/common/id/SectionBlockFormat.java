@@ -154,18 +154,24 @@ public final class SectionBlockFormat {
     }
 
     public static void write(BlockStateContainer data, NBTTagCompound section, ChunkPalette chunkPalette) {
+        BitArray storage = data.getRawStorage();
         IBlockState[] local = data.getLocalPalette();
-        int[] values;
+        if (storage == null) {
+            writePalette(section, chunkPalette, local); // zero-bit section: its one state
+            section.removeTag(STATES);
+            return;
+        }
+        int[] values = new int[SIZE];
         IBlockState[] entries;
         if (local != null) {
+            for (int i = 0; i < SIZE; i++) {
+                values[i] = storage.getAt(i);
+            }
             entries = local;
-            values = null;
         } else {
-            BitArray storage = data.getRawStorage();
             Int2IntOpenHashMap localOf = new Int2IntOpenHashMap();
             localOf.defaultReturnValue(-1);
             List<IBlockState> used = new ArrayList<>();
-            values = new int[SIZE];
             for (int i = 0; i < SIZE; i++) {
                 int raw = storage.getAt(i);
                 int index = localOf.get(raw);
@@ -178,29 +184,16 @@ public final class SectionBlockFormat {
             }
             entries = used.toArray(new IBlockState[0]);
         }
-        int[] palette = new int[entries.length];
-        for (int i = 0; i < entries.length; i++) {
-            palette[i] = chunkPalette.indexOf(entries[i]);
-        }
-        section.setTag(PALETTE, new NBTTagIntArray(palette));
-        if (entries.length == 1) {
+        IBlockState[] saved = compact(entries, values);
+        writePalette(section, chunkPalette, saved);
+        if (saved.length == 1) {
             section.removeTag(STATES);
             return;
         }
-        int bits = bitsFor(entries.length);
-        long[] longs;
-        if (values == null && bits == data.getRawBits()) {
-            longs = data.getRawStorage().getBackingLongArray().clone();
-        } else {
-            if (values == null) {
-                BitArray storage = data.getRawStorage();
-                values = new int[SIZE];
-                for (int i = 0; i < SIZE; i++) {
-                    values[i] = storage.getAt(i);
-                }
-            }
-            longs = pack(values, bits);
-        }
+        int bits = bitsFor(saved.length);
+        long[] longs = saved == local && bits == data.getRawBits()
+            ? storage.getBackingLongArray().clone()
+            : pack(values, bits);
         section.setTag(STATES, new NBTTagLongArray(longs));
     }
 
@@ -264,6 +257,49 @@ public final class SectionBlockFormat {
         PARSED.clear();
     }
 
+    /**
+     * Drops the entries no block uses (in-memory palettes never shrink) and puts air first, which
+     * {@link BlockStateContainer#loadLocalPalette} needs to load the section straight into a local palette.
+     * Remaps {@code values} in place; returns {@code entries} itself when nothing changes, and a single entry when
+     * one state fills the section.
+     */
+    static IBlockState[] compact(IBlockState[] entries, int[] values) {
+        int[] uses = new int[entries.length];
+        for (int value : values) {
+            uses[value]++;
+        }
+        int distinct = 0;
+        int last = 0;
+        for (int e = 0; e < entries.length; e++) {
+            if (uses[e] > 0) {
+                distinct++;
+                last = e;
+            }
+        }
+        if (distinct == 1) {
+            return entries.length == 1 ? entries : new IBlockState[] { entries[last] };
+        }
+        IBlockState air = Blocks.AIR.getDefaultState();
+        if (entries[0] == air && distinct + (uses[0] > 0 ? 0 : 1) == entries.length) {
+            return entries;
+        }
+        int[] remap = new int[entries.length];
+        List<IBlockState> kept = new ArrayList<>(distinct + 1);
+        kept.add(air);
+        for (int e = 0; e < entries.length; e++) {
+            if (entries[e] == air) {
+                remap[e] = 0;
+            } else if (uses[e] > 0) {
+                remap[e] = kept.size();
+                kept.add(entries[e]);
+            }
+        }
+        for (int i = 0; i < values.length; i++) {
+            values[i] = remap[values[i]];
+        }
+        return kept.toArray(new IBlockState[0]);
+    }
+
     static String toString(IBlockState state) {
         if (state instanceof net.minecraft.block.state.BlockStateContainer.StateImplementation impl) {
             String name = impl.savedName;
@@ -317,8 +353,14 @@ public final class SectionBlockFormat {
     static long[] pack(int[] indices, int bits) {
         int perLong = 64 / bits;
         long[] longs = new long[longCount(bits)];
-        for (int i = 0; i < indices.length; i++) {
-            longs[i / perLong] |= (long) indices[i] << (i % perLong * bits);
+        int i = 0;
+        for (int l = 0; l < longs.length; l++) {
+            int end = Math.min(i + perLong, indices.length);
+            long word = 0;
+            for (int shift = 0; i < end; i++,shift += bits) {
+                word |= (long) indices[i] << shift;
+            }
+            longs[l] = word;
         }
         return longs;
     }
@@ -327,10 +369,23 @@ public final class SectionBlockFormat {
         int perLong = 64 / bits;
         long mask = (1L << bits) - 1;
         int[] indices = new int[SIZE];
-        for (int i = 0; i < SIZE; i++) {
-            indices[i] = (int) (longs[i / perLong] >>> (i % perLong * bits) & mask);
+        int i = 0;
+        for (int l = 0; l < longs.length && i < SIZE; l++) {
+            long word = longs[l];
+            int end = Math.min(i + perLong, SIZE);
+            for (; i < end; i++,word >>>= bits) {
+                indices[i] = (int) (word & mask);
+            }
         }
         return indices;
+    }
+
+    private static void writePalette(NBTTagCompound section, ChunkPalette chunkPalette, IBlockState[] entries) {
+        int[] palette = new int[entries.length];
+        for (int i = 0; i < entries.length; i++) {
+            palette[i] = chunkPalette.indexOf(entries[i]);
+        }
+        section.setTag(PALETTE, new NBTTagIntArray(palette));
     }
 
     private static String buildName(IBlockState state) {

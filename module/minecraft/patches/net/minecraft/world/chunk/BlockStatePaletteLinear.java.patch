@@ -1,6 +1,18 @@
 --- original/net/minecraft/world/chunk/BlockStatePaletteLinear.java
 +++ modified/net/minecraft/world/chunk/BlockStatePaletteLinear.java
-@@ -50,7 +50,7 @@
+@@ -40,6 +40,11 @@
+     /** Gets the block state by the palette id. */
+     @Nullable
+     @Override
++    public int paletteSize() {
++        return this.arraySize;
++    }
++
++    @Override
+     public IBlockState getBlockState(int indexKey) {
+         return indexKey >= 0 && indexKey < this.arraySize ? this.states[indexKey] : null;
+     }
+@@ -50,7 +55,7 @@
          this.arraySize = buf.readVarInt();
  
          for (int i = 0; i < this.arraySize; i++) {

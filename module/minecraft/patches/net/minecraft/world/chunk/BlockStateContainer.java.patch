@@ -70,11 +70,11 @@
 +        if (this.bits > 8) {
 +            return null;
 +        }
-+        java.util.List<IBlockState> states = new java.util.ArrayList<>();
-+        for (IBlockState state = this.palette.getBlockState(0); state != null; state = this.palette.getBlockState(states.size())) {
-+            states.add(state);
++        IBlockState[] states = new IBlockState[this.palette.paletteSize()];
++        for (int i = 0; i < states.length; i++) {
++            states[i] = this.palette.getBlockState(i);
 +        }
-+        return states.toArray(new IBlockState[0]);
++        return states;
 +    }
 +
 +    /**
@@ -204,7 +204,7 @@
      public void setDataFromNBT(byte[] blockIds, NibbleArray data, @Nullable NibbleArray blockIdExtension) {
          for (int i = 0; i < 4096; i++) {
              int j = i & 15;
-@@ -125,14 +183,62 @@
+@@ -125,14 +183,67 @@
              int l = i >> 4 & 15;
              int i1 = blockIdExtension == null ? 0 : blockIdExtension.get(j, k, l);
              int j1 = i1 << 12 | (blockIds[i] & 255) << 4 | data.get(j, k, l);
@@ -237,6 +237,11 @@
 +        private ZeroPalette(IBlockStatePaletteResizer resizerIn, IBlockState initialState) {
 +            this.resizer = resizerIn;
 +            this.state = initialState;
++        }
++
++        @Override
++        public int paletteSize() {
++            return 1;
 +        }
 +
 +        @Override

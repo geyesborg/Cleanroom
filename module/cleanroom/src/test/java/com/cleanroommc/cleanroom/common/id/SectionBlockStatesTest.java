@@ -118,6 +118,58 @@ public class SectionBlockStatesTest {
 
     /* Sections with 1, 2, 16, 17, 256 and 300 distinct states (4-bit copy, 5..8-bit local palettes, global ids). */
     @Test
+    public void savingDropsPaletteEntriesNoBlockUses() {
+        IBlockState air = Blocks.AIR.getDefaultState();
+        IBlockState stone = Blocks.STONE.getDefaultState();
+        BlockStateContainer data = new BlockStateContainer();
+        data.set(0, 0, 0, stone);
+        data.set(1, 0, 0, Blocks.DIRT.getDefaultState());
+        data.set(1, 0, 0, air);
+        SectionBlockFormat.ChunkPalette palette = new SectionBlockFormat.ChunkPalette();
+        NBTTagCompound section = new NBTTagCompound();
+        SectionBlockFormat.write(data, section, palette);
+        assertThat(section.getIntArray("Palette")).hasSize(2);
+        NBTTagCompound chunk = new NBTTagCompound();
+        chunk.setTag(SectionBlockFormat.CHUNK_PALETTE, palette.toNBT());
+        BlockStateContainer back = new BlockStateContainer();
+        SectionBlockFormat.read(section, back, SectionBlockFormat.readChunkPalette(chunk));
+        assertThat(back.getLocalPalette()).containsExactly(air, stone);
+        assertThat(back.get(0, 0, 0)).isSameAs(stone);
+        assertThat(back.get(1, 0, 0)).isSameAs(air);
+    }
+
+    @Test
+    public void clearedSectionSavesUniformAndLoadsAtZeroBits() {
+        IBlockState air = Blocks.AIR.getDefaultState();
+        BlockStateContainer data = new BlockStateContainer();
+        data.set(3, 4, 5, Blocks.STONE.getDefaultState());
+        data.set(3, 4, 5, air);
+        SectionBlockFormat.ChunkPalette palette = new SectionBlockFormat.ChunkPalette();
+        NBTTagCompound section = new NBTTagCompound();
+        SectionBlockFormat.write(data, section, palette);
+        assertThat(section.getIntArray("Palette")).hasSize(1);
+        assertThat(section.hasKey("BlockStates")).isFalse();
+        NBTTagCompound chunk = new NBTTagCompound();
+        chunk.setTag(SectionBlockFormat.CHUNK_PALETTE, palette.toNBT());
+        BlockStateContainer back = new BlockStateContainer();
+        SectionBlockFormat.read(section, back, SectionBlockFormat.readChunkPalette(chunk));
+        assertThat(back.getRawBits()).isZero();
+        assertThat(back.get(3, 4, 5)).isSameAs(air);
+    }
+
+    @Test
+    public void compactPutsAirFirst() {
+        IBlockState stone = Blocks.STONE.getDefaultState();
+        IBlockState dirt = Blocks.DIRT.getDefaultState();
+        int[] values = new int[4096];
+        values[5] = 1;
+        IBlockState[] saved = SectionBlockFormat.compact(new IBlockState[] { stone, dirt }, values);
+        assertThat(saved).containsExactly(Blocks.AIR.getDefaultState(), stone, dirt);
+        assertThat(values[0]).isEqualTo(1);
+        assertThat(values[5]).isEqualTo(2);
+    }
+
+    @Test
     public void sectionsRoundTripAtEveryPaletteWidth() {
         List<IBlockState> states = allStates();
         for (int distinct : new int[] { 1, 2, 16, 17, 33, 100, 256, 300, 1024 }) {
