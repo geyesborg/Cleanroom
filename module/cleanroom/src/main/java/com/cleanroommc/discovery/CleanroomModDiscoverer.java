@@ -12,6 +12,7 @@ package com.cleanroommc.discovery;
 
 import com.cleanroommc.cleanmix.CleanMixModContainer;
 import com.cleanroommc.cleanmix.MixinConfiguration;
+import com.cleanroommc.cleanroom.common.id.IncompatibleIdModsException;
 import com.cleanroommc.common.CleanroomContainer;
 import com.cleanroommc.common.CleanroomEnvironment;
 import com.cleanroommc.common.ConfigAnytimeContainer;
@@ -142,6 +143,11 @@ public final class CleanroomModDiscoverer extends ModDiscoverer {
     private static final String COREMOD_CONTAINS_FML_MOD = "FMLCorePluginContainsFMLMod";
     private static final String FML_CORE_PLUGIN = "FMLCorePlugin";
     private static final String FERMIUM_PLUGIN = "fermiumbooter.FermiumPlugin";
+    // Coremods that raise vanilla's ID limits themselves, which conflicts with Cleanroom's wide IDs
+    private static final Set<String> WIDE_ID_INCOMPATIBLE_PLUGINS = Set.of(
+        "org.dimdev.jeid.JEIDLoadingPlugin", "org.dimdev.jeid.core.JEIDLoadingPlugin", "ru.fewizz.neid.asm.Plugin",
+        "com.cleanroommc.hadenoughids.core.HadEnoughIDsPlugin"
+    );
 
     private final List<ModContainer> builtInMods = List.of(new MixinBooterModContainer(), new ConfigAnytimeContainer());
     private final List<String> builtInModIds = builtInMods.stream().map(ModContainer::getModId).toList();
@@ -152,6 +158,8 @@ public final class CleanroomModDiscoverer extends ModDiscoverer {
 
     private List<File> nonModLibs = List.of();
     private boolean hasForgeMods;
+
+    private final Map<String, File> incompatibleIdMods = new LinkedHashMap<>();
 
     private CleanroomModDiscoverer() {
         this.discover();
@@ -170,6 +178,21 @@ public final class CleanroomModDiscoverer extends ModDiscoverer {
         }
         for (String file : containedDeps.split(" ")) {
             classLoader.addURL(new File(containedDepsDir, file).getAbsoluteFile().toURI().toURL());
+        }
+    }
+
+    private static boolean isWideIdIncompatible(DiscoveredMod mod) {
+        return mod.coremod() != null && WIDE_ID_INCOMPATIBLE_PLUGINS.contains(mod.coremod());
+    }
+
+    /**
+     * Stops launching once mods are identified if a mod that conflicts with wide IDs was found.
+     *
+     * @throws IncompatibleIdModsException listing the conflicting mods
+     */
+    public void checkIncompatibleIdMods() {
+        if (!incompatibleIdMods.isEmpty()) {
+            throw new IncompatibleIdModsException(incompatibleIdMods);
         }
     }
 
@@ -401,7 +424,7 @@ public final class CleanroomModDiscoverer extends ModDiscoverer {
 
     public void discoverMixinMods() {
         for (DiscoveredMod mod : discoveredFiles.values()) {
-            if (!mod.hasMixinManifestAttributes()) {
+            if (!mod.hasMixinManifestAttributes() || isWideIdIncompatible(mod)) {
                 continue;
             }
             if (mod.coremod() == null) {
@@ -500,6 +523,7 @@ public final class CleanroomModDiscoverer extends ModDiscoverer {
             // Forge reports both as duplicate mods
             if (coremod == null ||
                 FERMIUM_PLUGIN.equals(coremod) ||
+                WIDE_ID_INCOMPATIBLE_PLUGINS.contains(coremod) ||
                 isCorePluginBlacklisted(coremod) ||
                 CoreModManager.isCoreModLoaded(coremod)) {
                 continue;
@@ -651,6 +675,16 @@ public final class CleanroomModDiscoverer extends ModDiscoverer {
 
     private void discoverCoreMod(
         LaunchClassLoader classLoader, FMLTweaker tweaker, DiscoveredMod discoveredMod, File containedDepsDir) {
+        if (isWideIdIncompatible(discoveredMod)) {
+            incompatibleIdMods.put(discoveredMod.coremod(), discoveredMod.file());
+            CoreModManager.getIgnoredMods().add(discoveredMod.file().getName());
+            CleanroomLog.get()
+                .error(
+                    "{} ({}) is incompatible with Cleanroom wide IDs and won't be loaded.",
+                    discoveredMod.file().getName(), discoveredMod.coremod()
+                );
+            return;
+        }
         File file = discoveredMod.file();
         CleanroomLog.get().debug("Examining for coremod candidacy {}", file.getName());
         Attributes attributes;

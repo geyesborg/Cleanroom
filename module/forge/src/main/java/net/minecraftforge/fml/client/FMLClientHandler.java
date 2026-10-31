@@ -35,6 +35,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
+import com.cleanroommc.cleanroom.common.id.IncompatibleIdModsException;
 import com.cleanroommc.client.modlist.ModListConfig;
 import com.cleanroommc.client.modlist.screen.ModListScreen;
 import com.cleanroommc.common.PatchModPresentChecker;
@@ -249,7 +250,7 @@ public class FMLClientHandler implements IFMLSidedHandler
         {
             Loader.instance().loadMods(injectedModContainers);
         }
-        catch (WrongMinecraftVersionException | DuplicateModsFoundException | MissingModsException | ModSortingException | CustomModLoadingErrorDisplayException | MultipleModsErrored e)
+        catch (WrongMinecraftVersionException | DuplicateModsFoundException | MissingModsException | ModSortingException | CustomModLoadingErrorDisplayException | MultipleModsErrored | IncompatibleIdModsException e)
         {
             FMLLog.log.error("An exception was thrown, the game will display an error screen and halt.", e);
             errorToDisplay = e;
