@@ -44,7 +44,22 @@
          this.rand.setSeed(x * 341873128712L + z * 132897987541L);
          ChunkPrimer chunkprimer = new ChunkPrimer();
          this.biomesForGeneration = this.world.getBiomeProvider().getBiomes(this.biomesForGeneration, x * 16, z * 16, 16, 16);
-@@ -219,6 +235,10 @@
+@@ -165,10 +181,11 @@
+         }
+ 
+         Chunk chunk = new Chunk(this.world, chunkprimer, x, z);
+-        byte[] abyte = chunk.getBiomeArray();
++        // Cleanroom: full ids straight into the chunk; getBiomeArray() is a detached snapshot, so writes to it are lost
++        com.cleanroommc.cleanroom.common.id.ChunkBiomes biomeIds = chunk.getBiomeIds();
+ 
+-        for (int i = 0; i < abyte.length; i++) {
+-            abyte[i] = (byte)Biome.getIdForBiome(this.biomesForGeneration[i]);
++        for (int i = 0; i < 256; i++) {
++            biomeIds.set(i & 15, i >> 4, Biome.getIdForBiome(this.biomesForGeneration[i]));
+         }
+ 
+         chunk.generateSkylightMap();
+@@ -219,6 +236,10 @@
      }
  
      private double[] getHeights(double[] p_185963_1_, int p_185963_2_, int p_185963_3_, int p_185963_4_, int p_185963_5_, int p_185963_6_, int p_185963_7_) {
@@ -55,7 +70,7 @@
          if (p_185963_1_ == null) {
              p_185963_1_ = new double[p_185963_5_ * p_185963_6_ * p_185963_7_];
          }
-@@ -288,6 +308,7 @@
+@@ -288,6 +309,7 @@
      @Override
      public void populate(int x, int z) {
          BlockFalling.fallInstantly = true;
@@ -63,7 +78,7 @@
          BlockPos blockpos = new BlockPos(x * 16, 0, z * 16);
          if (this.mapFeaturesEnabled) {
              this.endCityGen.generateStructure(this.world, this.rand, new ChunkPos(x, z));
-@@ -348,6 +369,7 @@
+@@ -348,6 +370,7 @@
              }
          }
  

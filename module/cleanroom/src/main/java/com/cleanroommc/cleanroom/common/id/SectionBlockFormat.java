@@ -32,6 +32,7 @@ import net.minecraft.world.chunk.NibbleArray;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Block storage in saved chunks, by name, so saves don't depend on runtime ids (no limit on blocks or states):
@@ -55,6 +56,9 @@ public final class SectionBlockFormat {
     public static final String PALETTE = "Palette";
     public static final String STATES = "BlockStates";
     private static final int SIZE = 4096;
+
+    /* Saved names already resolved, so chunk loads don't re-parse the same strings; cleared when the block registry changes. */
+    private static final Map<String, IBlockState> PARSED = new ConcurrentHashMap<>();
 
     private SectionBlockFormat() { }
 
@@ -144,7 +148,7 @@ public final class SectionBlockFormat {
         NBTTagList list = chunkPaletteTag(chunk);
         IBlockState[] states = new IBlockState[list.tagCount()];
         for (int i = 0; i < states.length; i++) {
-            states[i] = parse(list.getStringTagAt(i));
+            states[i] = PARSED.computeIfAbsent(list.getStringTagAt(i), SectionBlockFormat::parse);
         }
         return states;
     }
@@ -253,21 +257,23 @@ public final class SectionBlockFormat {
         }
     }
 
+    /**
+     * Forgets the resolved saved names. Called when blocks are registered or the block registry is cleared.
+     */
+    public static void clearNameCache() {
+        PARSED.clear();
+    }
+
     static String toString(IBlockState state) {
-        ResourceLocation name = Block.REGISTRY.getNameForObject(state.getBlock());
-        if (state.getProperties().isEmpty()) {
-            return String.valueOf(name);
-        }
-        StringBuilder out = new StringBuilder(String.valueOf(name)).append('[');
-        boolean first = true;
-        for (Map.Entry<IProperty<?>, Comparable<?>> entry : state.getProperties().entrySet()) {
-            if (!first) {
-                out.append(',');
+        if (state instanceof net.minecraft.block.state.BlockStateContainer.StateImplementation impl) {
+            String name = impl.savedName;
+            if (name == null) {
+                name = buildName(state);
+                impl.savedName = name;
             }
-            first = false;
-            out.append(entry.getKey().getName()).append('=').append(valueName(entry.getKey(), entry.getValue()));
+            return name;
         }
-        return out.append(']').toString();
+        return buildName(state);
     }
 
     static IBlockState parse(String s) {
@@ -325,6 +331,23 @@ public final class SectionBlockFormat {
             indices[i] = (int) (longs[i / perLong] >>> (i % perLong * bits) & mask);
         }
         return indices;
+    }
+
+    private static String buildName(IBlockState state) {
+        ResourceLocation name = Block.REGISTRY.getNameForObject(state.getBlock());
+        if (state.getProperties().isEmpty()) {
+            return String.valueOf(name);
+        }
+        StringBuilder out = new StringBuilder(String.valueOf(name)).append('[');
+        boolean first = true;
+        for (Map.Entry<IProperty<?>, Comparable<?>> entry : state.getProperties().entrySet()) {
+            if (!first) {
+                out.append(',');
+            }
+            first = false;
+            out.append(entry.getKey().getName()).append('=').append(valueName(entry.getKey(), entry.getValue()));
+        }
+        return out.append(']').toString();
     }
 
     private static void setFromPacked(int cellIndex, int packed, BlockStateContainer data) {

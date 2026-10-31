@@ -28,7 +28,22 @@
          int i = this.world.getSeaLevel() + 1;
          double d0 = 0.03125;
          this.slowsandNoise = this.slowsandGravelNoiseGen.generateNoiseOctaves(this.slowsandNoise, p_185937_1_ * 16, p_185937_2_ * 16, 0, 16, 16, 1, 0.03125, 0.03125, 1.0);
-@@ -240,6 +254,10 @@
+@@ -225,10 +239,11 @@
+ 
+         Chunk chunk = new Chunk(this.world, chunkprimer, x, z);
+         Biome[] abiome = this.world.getBiomeProvider().getBiomes(null, x * 16, z * 16, 16, 16);
+-        byte[] abyte = chunk.getBiomeArray();
++        // Cleanroom: full ids straight into the chunk; getBiomeArray() is a detached snapshot, so writes to it are lost
++        com.cleanroommc.cleanroom.common.id.ChunkBiomes biomeIds = chunk.getBiomeIds();
+ 
+-        for (int i = 0; i < abyte.length; i++) {
+-            abyte[i] = (byte)Biome.getIdForBiome(abiome[i]);
++        for (int i = 0; i < 256; i++) {
++            biomeIds.set(i & 15, i >> 4, Biome.getIdForBiome(abiome[i]));
+         }
+ 
+         chunk.resetRelightChecks();
+@@ -240,6 +255,10 @@
              p_185938_1_ = new double[p_185938_5_ * p_185938_6_ * p_185938_7_];
          }
  
@@ -39,7 +54,7 @@
          double d0 = 684.412;
          double d1 = 2053.236;
          this.noiseData4 = this.scaleNoise
-@@ -327,6 +345,7 @@
+@@ -327,6 +346,7 @@
      @Override
      public void populate(int x, int z) {
          BlockFalling.fallInstantly = true;
@@ -47,7 +62,7 @@
          int i = x * 16;
          int j = z * 16;
          BlockPos blockpos = new BlockPos(i, 0, j);
-@@ -334,6 +353,7 @@
+@@ -334,6 +354,7 @@
          ChunkPos chunkpos = new ChunkPos(x, z);
          this.genNetherBridge.generateStructure(this.world, this.rand, chunkpos);
  
@@ -55,7 +70,7 @@
          for (int k = 0; k < 8; k++) {
              this.hellSpringGen
                  .generate(
-@@ -343,6 +363,7 @@
+@@ -343,6 +364,7 @@
                  );
          }
  
@@ -63,7 +78,7 @@
          for (int i1 = 0; i1 < this.rand.nextInt(this.rand.nextInt(10) + 1) + 1; i1++) {
              this.fireFeature
                  .generate(
-@@ -352,6 +373,7 @@
+@@ -352,6 +374,7 @@
                  );
          }
  
@@ -71,7 +86,7 @@
          for (int j1 = 0; j1 < this.rand.nextInt(this.rand.nextInt(10) + 1); j1++) {
              this.lightGemGen
                  .generate(
-@@ -370,6 +392,12 @@
+@@ -370,6 +393,12 @@
                  );
          }
  
@@ -84,7 +99,7 @@
          if (this.rand.nextBoolean()) {
              this.brownMushroomFeature
                  .generate(
-@@ -388,6 +416,8 @@
+@@ -388,6 +417,8 @@
                  );
          }
  
@@ -93,7 +108,7 @@
          for (int l1 = 0; l1 < 16; l1++) {
              this.quartzGen
                  .generate(
-@@ -399,6 +429,7 @@
+@@ -399,6 +430,7 @@
  
          int i2 = this.world.getSeaLevel() / 2 + 1;
  
@@ -101,7 +116,7 @@
          for (int l = 0; l < 4; l++) {
              this.magmaGen
                  .generate(
-@@ -408,16 +439,21 @@
+@@ -408,16 +440,21 @@
                  );
          }
  

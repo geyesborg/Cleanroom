@@ -297,6 +297,7 @@ public class GameData
         public void onAdd(IForgeRegistryInternal<Block> owner, RegistryManager stage, int id, Block block, @Nullable Block oldBlock)
         {
             owner.getSlaveMap(BLOCKSTATE_TO_ID, BlockStateIdMap.class).invalidate();
+            com.cleanroommc.cleanroom.common.id.SectionBlockFormat.clearNameCache();
 
             if (oldBlock != null)
             {
@@ -312,6 +313,7 @@ public class GameData
         public void onClear(IForgeRegistryInternal<Block> owner, RegistryManager stage)
         {
             owner.getSlaveMap(BLOCKSTATE_TO_ID, BlockStateIdMap.class).invalidate();
+            com.cleanroommc.cleanroom.common.id.SectionBlockFormat.clearNameCache();
         }
 
         @Override

@@ -39,7 +39,7 @@
          this.validStates = ImmutableList.copyOf(list1);
      }
  
-@@ -143,11 +155,27 @@
+@@ -143,11 +155,29 @@
          private final ImmutableMap<IProperty<?>, Comparable<?>> properties;
          /** Lookup-table for IBlockState instances. This is a Table<Property, Value, State>. */
          protected ImmutableTable<IProperty<?>, Comparable<?>, IBlockState> propertyValueTable;
@@ -47,6 +47,8 @@
 +        public int runtimeStateId = -1;
 +        /** Cleanroom: this state's index in the container's valid-state list, assigned at build time; -1 if unlisted */
 +        public int ordinal = -1;
++        /** Cleanroom: this state's name in chunk saves, built on first save by SectionBlockFormat; null until then */
++        public String savedName;
  
 +        @Override
 +        public int getStateId() {
@@ -67,7 +69,7 @@
  
          /** Get the names of all properties defined for this BlockState */
          @Override
-@@ -204,6 +232,11 @@
+@@ -204,6 +234,11 @@
          }
  
          @Override
@@ -79,7 +81,7 @@
          public boolean equals(Object p_equals_1_) {
              return this == p_equals_1_;
          }
-@@ -458,5 +491,92 @@
+@@ -458,5 +493,92 @@
          public BlockFaceShape getBlockFaceShape(IBlockAccess worldIn, BlockPos pos, EnumFacing facing) {
              return this.block.getBlockFaceShape(worldIn, this, pos, facing);
          }

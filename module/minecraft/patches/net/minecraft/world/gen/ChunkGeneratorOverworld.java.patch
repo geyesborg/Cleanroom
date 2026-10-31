@@ -43,7 +43,22 @@
          double d0 = 0.03125;
          this.depthBuffer = this.surfaceNoise.getRegion(this.depthBuffer, x * 16, z * 16, 16, 16, 0.0625, 0.0625, 1.0);
  
-@@ -349,6 +371,9 @@
+@@ -204,10 +226,11 @@
+         }
+ 
+         Chunk chunk = new Chunk(this.world, chunkprimer, x, z);
+-        byte[] abyte = chunk.getBiomeArray();
++        // Cleanroom: full ids straight into the chunk; getBiomeArray() is a detached snapshot, so writes to it are lost
++        com.cleanroommc.cleanroom.common.id.ChunkBiomes biomeIds = chunk.getBiomeIds();
+ 
+-        for (int i = 0; i < abyte.length; i++) {
+-            abyte[i] = (byte)Biome.getIdForBiome(this.biomesForGeneration[i]);
++        for (int i = 0; i < 256; i++) {
++            biomeIds.set(i & 15, i >> 4, Biome.getIdForBiome(this.biomesForGeneration[i]));
+         }
+ 
+         chunk.generateSkylightMap();
+@@ -349,6 +372,9 @@
          this.rand.setSeed(x * k + z * l ^ this.world.getSeed());
          boolean flag = false;
          ChunkPos chunkpos = new ChunkPos(x, z);
@@ -53,7 +68,7 @@
          if (this.mapFeaturesEnabled) {
              if (this.settings.useMineShafts) {
                  this.mineshaftGenerator.generateStructure(this.world, this.rand, chunkpos);
-@@ -376,17 +401,19 @@
+@@ -376,17 +402,19 @@
          }
  
          if (biome != Biomes.DESERT
@@ -78,7 +93,7 @@
              int i2 = this.rand.nextInt(16) + 8;
              int l2 = this.rand.nextInt(this.rand.nextInt(248) + 8);
              int k3 = this.rand.nextInt(16) + 8;
-@@ -395,7 +422,8 @@
+@@ -395,7 +423,8 @@
              }
          }
  
@@ -88,7 +103,7 @@
              for (int j2 = 0; j2 < this.settings.dungeonChance; j2++) {
                  int i3 = this.rand.nextInt(16) + 8;
                  int l3 = this.rand.nextInt(256);
-@@ -405,9 +433,11 @@
+@@ -405,9 +434,11 @@
          }
  
          biome.decorate(this.world, this.rand, new BlockPos(i, 0, j));
@@ -100,7 +115,7 @@
          for (int k2 = 0; k2 < 16; k2++) {
              for (int j3 = 0; j3 < 16; j3++) {
                  BlockPos blockpos1 = this.world.getPrecipitationHeight(blockpos.add(k2, 0, j3));
-@@ -421,7 +451,10 @@
+@@ -421,7 +452,10 @@
                  }
              }
          }

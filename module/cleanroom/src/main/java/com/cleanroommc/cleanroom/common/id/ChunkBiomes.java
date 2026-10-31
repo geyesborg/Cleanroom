@@ -165,7 +165,8 @@ public final class ChunkBiomes {
         int col = (z & 15) << 4 | x & 15;
         int layer = Math.clamp(y >> 4, 0, MAX_LAYERS - 1);
         if (layers == 1) {
-            if (layer == 0 || ids[col] == id) {
+            // An unset column takes the id whole: 1.12 biome providers are 2D, so a lazy fill at any height must not go 3D
+            if (layer == 0 || ids[col] == id || ids[col] == UNSET) {
                 set(col, id);
                 return;
             }

@@ -1,6 +1,21 @@
 --- original/net/minecraft/world/gen/ChunkGeneratorFlat.java
 +++ modified/net/minecraft/world/gen/ChunkGeneratorFlat.java
-@@ -143,6 +143,7 @@
+@@ -125,10 +125,11 @@
+ 
+         Chunk chunk = new Chunk(this.world, chunkprimer, x, z);
+         Biome[] abiome = this.world.getBiomeProvider().getBiomes(null, x * 16, z * 16, 16, 16);
+-        byte[] abyte = chunk.getBiomeArray();
++        // Cleanroom: full ids straight into the chunk; getBiomeArray() is a detached snapshot, so writes to it are lost
++        com.cleanroommc.cleanroom.common.id.ChunkBiomes biomeIds = chunk.getBiomeIds();
+ 
+-        for (int l = 0; l < abyte.length; l++) {
+-            abyte[l] = (byte)Biome.getIdForBiome(abiome[l]);
++        for (int l = 0; l < 256; l++) {
++            biomeIds.set(l & 15, l >> 4, Biome.getIdForBiome(abiome[l]));
+         }
+ 
+         chunk.generateSkylightMap();
+@@ -143,6 +144,7 @@
       */
      @Override
      public void populate(int x, int z) {
@@ -8,7 +23,7 @@
          int i = x * 16;
          int j = z * 16;
          BlockPos blockpos = new BlockPos(i, 0, j);
-@@ -154,6 +155,8 @@
+@@ -154,6 +156,8 @@
          this.random.setSeed(x * k + z * l ^ this.world.getSeed());
          ChunkPos chunkpos = new ChunkPos(x, z);
  
@@ -17,7 +32,7 @@
          for (MapGenStructure mapgenstructure : this.structureGenerators.values()) {
              boolean flag1 = mapgenstructure.generateStructure(this.world, this.random, chunkpos);
              if (mapgenstructure instanceof MapGenVillage) {
-@@ -193,6 +196,9 @@
+@@ -193,6 +197,9 @@
          if (this.hasDecoration) {
              biome.decorate(this.world, this.random, blockpos);
          }

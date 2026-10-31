@@ -415,6 +415,17 @@ public class ChunkBiomesTest {
     }
 
     @Test
+    public void lazyFillOfUnsetColumnStaysOneLayer() throws Exception {
+        int plains = Biome.getIdForBiome(Biomes.PLAINS);
+        Chunk chunk = new Chunk(desertWorld(), 2, 2);
+        ChunkBiomes biomes = chunk.getBiomeIds();
+        biomes.set(3, 64, 5, plains);
+        assertThat(biomes.getLayers()).isEqualTo(1);
+        assertThat(biomes.get(3, 0, 5)).isEqualTo(plains);
+        assertThat(biomes.get(3, 200, 5)).isEqualTo(plains);
+    }
+
+    @Test
     public void verticalBiomeLayersExpandRoundTripNbtAndPackets() throws Exception {
         int plains = Biome.getIdForBiome(Biomes.PLAINS);
         int desert = Biome.getIdForBiome(Biomes.DESERT);

@@ -1,0 +1,17 @@
+--- original/net/minecraft/world/gen/ChunkGeneratorDebug.java
++++ modified/net/minecraft/world/gen/ChunkGeneratorDebug.java
+@@ -47,10 +47,11 @@
+         Chunk chunk = new Chunk(this.world, chunkprimer, x, z);
+         chunk.generateSkylightMap();
+         Biome[] abiome = this.world.getBiomeProvider().getBiomes(null, x * 16, z * 16, 16, 16);
+-        byte[] abyte = chunk.getBiomeArray();
++        // Cleanroom: full ids straight into the chunk; getBiomeArray() is a detached snapshot, so writes to it are lost
++        com.cleanroommc.cleanroom.common.id.ChunkBiomes biomeIds = chunk.getBiomeIds();
+ 
+-        for (int i1 = 0; i1 < abyte.length; i1++) {
+-            abyte[i1] = (byte)Biome.getIdForBiome(abiome[i1]);
++        for (int i1 = 0; i1 < 256; i1++) {
++            biomeIds.set(i1 & 15, i1 >> 4, Biome.getIdForBiome(abiome[i1]));
+         }
+ 
+         chunk.generateSkylightMap();
