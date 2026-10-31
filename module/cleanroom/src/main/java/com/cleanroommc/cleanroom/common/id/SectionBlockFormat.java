@@ -11,6 +11,7 @@
 package com.cleanroommc.cleanroom.common.id;
 
 import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
+import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Reference2IntOpenHashMap;
 import org.jspecify.annotations.Nullable;
 
@@ -87,6 +88,7 @@ public final class SectionBlockFormat {
         }
         NibbleArray dataNibbles = new NibbleArray(nibbles);
         NibbleArray addNibbles = section.hasKey("Add", 7) ? new NibbleArray(section.getByteArray("Add")) : null;
+        Int2ObjectOpenHashMap<IBlockState> resolved = new Int2ObjectOpenHashMap<>();
         for (int i = 0; i < SIZE; i++) {
             int x = i & 15;
             int y = i >> 8 & 15;
@@ -98,7 +100,7 @@ public final class SectionBlockFormat {
             if (index >= palette.length) {
                 throw corrupt(section, "refers to JEID palette entry " + index + " of " + palette.length);
             }
-            setFromPacked(i, palette[index], data);
+            setFromPacked(i, palette[index], data, resolved);
         }
     }
 
@@ -112,6 +114,7 @@ public final class SectionBlockFormat {
         NibbleArray dataNibbles = new NibbleArray(nibbles);
         NibbleArray addNibbles = section.hasKey("Add", 7) ? new NibbleArray(section.getByteArray("Add")) : null;
         NibbleArray add2Nibbles = new NibbleArray(add2Bytes);
+        Int2ObjectOpenHashMap<IBlockState> resolved = new Int2ObjectOpenHashMap<>();
         for (int i = 0; i < SIZE; i++) {
             int x = i & 15;
             int y = i >> 8 & 15;
@@ -120,19 +123,20 @@ public final class SectionBlockFormat {
             int add2 = add2Nibbles.get(x, y, z);
             int blockId = (add2 << 12) | (add << 8) | (blocks[i] & 255);
             int meta = dataNibbles.get(x, y, z);
-            setFromPacked(i, blockId << 4 | meta, data);
+            setFromPacked(i, blockId << 4 | meta, data, resolved);
         }
     }
 
     public static void readLegacy(
         byte[] blockIds, NibbleArray dataNibbles, @Nullable NibbleArray blockIdExtension, BlockStateContainer data) {
+        Int2ObjectOpenHashMap<IBlockState> resolved = new Int2ObjectOpenHashMap<>();
         for (int i = 0; i < SIZE; i++) {
             int x = i & 15;
             int y = i >> 8 & 15;
             int z = i >> 4 & 15;
             int ext = blockIdExtension == null ? 0 : blockIdExtension.get(x, y, z);
             int packed = ext << 12 | (blockIds[i] & 255) << 4 | dataNibbles.get(x, y, z);
-            setFromPacked(i, packed, data);
+            setFromPacked(i, packed, data, resolved);
         }
     }
 
@@ -405,18 +409,19 @@ public final class SectionBlockFormat {
         return out.append(']').toString();
     }
 
-    private static void setFromPacked(int cellIndex, int packed, BlockStateContainer data) {
-        int x = cellIndex & 15;
-        int y = cellIndex >> 8 & 15;
-        int z = cellIndex >> 4 & 15;
-        int blockId = packed >>> 4;
-        int meta = packed & 15;
-        Block block = LegacyIds.block(blockId);
-        if (block != null) {
-            data.set(x, y, z, block.getStateFromMeta(meta));
-            return;
+    /* Resolves each distinct legacy id << 4 | meta once per section; unknown blocks become air. */
+    private static void setFromPacked(
+        int cellIndex, int packed, BlockStateContainer data, Int2ObjectOpenHashMap<IBlockState> resolved) {
+        IBlockState state = resolved.get(packed);
+        if (state == null) {
+            Block block = LegacyIds.block(packed >>> 4);
+            state = block == null ? null : block.getStateFromMeta(packed & 15);
+            if (state == null) {
+                state = Blocks.AIR.getDefaultState();
+            }
+            resolved.put(packed, state);
         }
-        data.set(x, y, z, Blocks.AIR.getDefaultState());
+        data.set(cellIndex & 15, cellIndex >> 8 & 15, cellIndex >> 4 & 15, state);
     }
 
     private static NBTTagList chunkPaletteTag(NBTTagCompound chunk) {

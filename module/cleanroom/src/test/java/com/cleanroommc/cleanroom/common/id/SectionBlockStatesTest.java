@@ -23,6 +23,7 @@ import net.minecraft.nbt.NBTTagLongArray;
 import net.minecraft.nbt.NBTTagString;
 import net.minecraft.network.PacketBuffer;
 import net.minecraft.world.chunk.BlockStateContainer;
+import net.minecraft.world.chunk.NibbleArray;
 import net.minecraftforge.fml.common.registry.ForgeTestRunner;
 import net.minecraftforge.fml.common.registry.MinecraftTestHarness;
 
@@ -117,6 +118,31 @@ public class SectionBlockStatesTest {
     }
 
     /* Sections with 1, 2, 16, 17, 256 and 300 distinct states (4-bit copy, 5..8-bit local palettes, global ids). */
+    @Test
+    public void legacySectionsResolveToTheirStates() {
+        IBlockState[] expected = {
+            Blocks.STONE.getDefaultState(),
+            Blocks.WOOL.getStateFromMeta(3),
+            Blocks.WOOL.getStateFromMeta(14),
+            Blocks.AIR.getDefaultState()
+        };
+        byte[] ids = new byte[4096];
+        NibbleArray meta = new NibbleArray();
+        NibbleArray ext = new NibbleArray();
+        for (int i = 0; i < 4096; i++) {
+            IBlockState state = expected[i % expected.length];
+            int id = Block.getIdFromBlock(state.getBlock());
+            ids[i] = (byte) id;
+            ext.set(i & 15, i >> 8 & 15, i >> 4 & 15, id >> 8 & 15);
+            meta.set(i & 15, i >> 8 & 15, i >> 4 & 15, state.getBlock().getMetaFromState(state));
+        }
+        BlockStateContainer data = new BlockStateContainer();
+        data.setDataFromNBT(ids, meta, ext);
+        for (int i = 0; i < 4096; i++) {
+            assertThat(data.get(i & 15, i >> 8 & 15, i >> 4 & 15)).isSameAs(expected[i % expected.length]);
+        }
+    }
+
     @Test
     public void savingDropsPaletteEntriesNoBlockUses() {
         IBlockState air = Blocks.AIR.getDefaultState();

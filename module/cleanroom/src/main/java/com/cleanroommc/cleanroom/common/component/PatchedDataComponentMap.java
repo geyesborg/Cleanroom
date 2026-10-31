@@ -14,6 +14,7 @@ import it.unimi.dsi.fastutil.objects.Reference2ObjectArrayMap;
 import it.unimi.dsi.fastutil.objects.ReferenceOpenHashSet;
 import org.jspecify.annotations.Nullable;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -128,6 +129,16 @@ public class PatchedDataComponentMap implements DataComponentMap {
     /* The differences from the prototype, {@code Optional.empty()} marking a removed default. */
     public Reference2ObjectArrayMap<DataComponentType<?>, Optional<?>> asPatch() {
         return patch.clone();
+    }
+
+    /* The patch itself, read-only and not copied; use {@link #asPatch} to keep it past the next change. */
+    public Map<DataComponentType<?>, Optional<?>> patchView() {
+        return Collections.unmodifiableMap(patch);
+    }
+
+    /* Whether this stack differs from its item's prototype at all. */
+    public boolean hasPatch() {
+        return !patch.isEmpty();
     }
 
     /* Restores patch entries read from a saved {@code Components} compound; merges onto the current patch. */

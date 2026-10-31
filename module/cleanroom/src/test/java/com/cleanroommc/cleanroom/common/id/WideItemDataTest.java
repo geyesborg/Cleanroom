@@ -10,6 +10,9 @@
 
 package com.cleanroommc.cleanroom.common.id;
 
+import com.cleanroommc.cleanroom.common.component.DataComponents;
+import com.cleanroommc.cleanroom.common.component.PatchedDataComponentMap;
+
 import io.netty.buffer.Unpooled;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -37,6 +40,7 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @ForgeTestRunner.Isolated
 public class WideItemDataTest {
@@ -219,6 +223,16 @@ public class WideItemDataTest {
             net.minecraft.init.Blocks.JUKEBOX.getDefaultState(), dummyWorld, net.minecraft.util.math.BlockPos.ORIGIN
         );
         assertThat(moddedSignal).isBetween(1, 15);
+    }
+
+    @Test
+    public void patchViewIsLiveAndReadOnly() {
+        PatchedDataComponentMap map = DataComponents.newMap(Items.DIAMOND_SWORD);
+        assertThat(map.hasPatch()).isFalse();
+        map.set(DataComponents.DAMAGE, 5);
+        assertThat(map.hasPatch()).isTrue();
+        assertThat(map.patchView()).isEqualTo(map.asPatch());
+        assertThatThrownBy(() -> map.patchView().clear()).isInstanceOf(UnsupportedOperationException.class);
     }
 
     @Test

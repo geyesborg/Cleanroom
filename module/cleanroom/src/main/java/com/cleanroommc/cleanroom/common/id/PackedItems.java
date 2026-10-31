@@ -49,7 +49,7 @@ public final class PackedItems {
         }
         Item item = stack.getItem();
         int meta = item.getHasSubtypes() ? stack.getMetadata() : 0;
-        if (stack.getComponents().asPatch().isEmpty()) {
+        if (!stack.getComponents().hasPatch()) {
             return pack(item, meta);
         }
         return packKey(new Key(item, meta, stack.getComponents().copy()));

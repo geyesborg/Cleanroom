@@ -218,7 +218,7 @@ public final class DataComponents {
     public static void writeNbt(
         PatchedDataComponentMap components, @Nullable NBTTagCompound unknownTags, NBTTagCompound nbt) {
         NBTTagCompound componentTags = new NBTTagCompound();
-        for (Map.Entry<DataComponentType<?>, Optional<?>> entry : components.asPatch().entrySet()) {
+        for (Map.Entry<DataComponentType<?>, Optional<?>> entry : components.patchView().entrySet()) {
             DataComponentType<?> type = entry.getKey();
             NbtCodec<?> codec = type.nbtCodec();
             if (codec == null || type.getRegistryName() == null) {
@@ -289,7 +289,7 @@ public final class DataComponents {
         ForgeRegistry<DataComponentType<?>> registry = componentRegistry();
         int written = 0;
         int removed = 0;
-        for (Map.Entry<DataComponentType<?>, Optional<?>> entry : stack.getComponents().asPatch().entrySet()) {
+        for (Map.Entry<DataComponentType<?>, Optional<?>> entry : stack.getComponents().patchView().entrySet()) {
             DataComponentType<?> type = entry.getKey();
             if (type.netCodec() == null || (registry != null && registry.getID(type) < 0)) {
                 continue;
@@ -302,7 +302,7 @@ public final class DataComponents {
         }
         buf.writeVarInt(written);
         if (written > 0) {
-            for (Map.Entry<DataComponentType<?>, Optional<?>> entry : stack.getComponents().asPatch().entrySet()) {
+            for (Map.Entry<DataComponentType<?>, Optional<?>> entry : stack.getComponents().patchView().entrySet()) {
                 DataComponentType<?> type = entry.getKey();
                 if (type.netCodec() != null &&
                     entry.getValue().isPresent() &&
@@ -314,7 +314,7 @@ public final class DataComponents {
         }
         buf.writeVarInt(removed);
         if (removed > 0) {
-            for (Map.Entry<DataComponentType<?>, Optional<?>> entry : stack.getComponents().asPatch().entrySet()) {
+            for (Map.Entry<DataComponentType<?>, Optional<?>> entry : stack.getComponents().patchView().entrySet()) {
                 DataComponentType<?> type = entry.getKey();
                 if (type.netCodec() != null &&
                     !entry.getValue().isPresent() &&
@@ -363,7 +363,7 @@ public final class DataComponents {
                 return false;
             }
         }
-        Map<DataComponentType<?>, Optional<?>> patch = template.getComponents().asPatch();
+        Map<DataComponentType<?>, Optional<?>> patch = template.getComponents().patchView();
         if (patch.isEmpty()) {
             return true;
         }
