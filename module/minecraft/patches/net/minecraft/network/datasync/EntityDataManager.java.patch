@@ -1,6 +1,24 @@
 --- original/net/minecraft/network/datasync/EntityDataManager.java
 +++ modified/net/minecraft/network/datasync/EntityDataManager.java
-@@ -36,11 +36,13 @@
+@@ -5,6 +5,7 @@
+ import io.netty.handler.codec.DecoderException;
+ import io.netty.handler.codec.EncoderException;
+ import java.io.IOException;
++import java.util.Arrays;
+ import java.util.List;
+ import java.util.Map;
+ import java.util.concurrent.locks.ReadWriteLock;
+@@ -26,7 +27,8 @@
+     private static final Map<Class<? extends Entity>, Integer> NEXT_ID_MAP = Maps.newHashMap();
+     /** The entity that this data manager is for. */
+     private final Entity entity;
+-    private final Map<Integer, EntityDataManager.DataEntry<?>> entries = Maps.newHashMap();
++    /** Cleanroom: indexed by parameter id, grown on register; ids are dense per entity class, so no boxed map */
++    private EntityDataManager.DataEntry<?>[] entries = new EntityDataManager.DataEntry<?>[0];
+     private final ReadWriteLock lock = new ReentrantReadWriteLock();
+     private boolean empty = true;
+     private boolean dirty;
+@@ -36,11 +38,13 @@
      }
  
      public static <T> DataParameter<T> createKey(Class<? extends Entity> clazz, DataSerializer<T> serializer) {
@@ -16,7 +34,7 @@
                  }
              } catch (ClassNotFoundException classnotfoundexception) {
              }
-@@ -64,20 +66,13 @@
+@@ -64,21 +68,14 @@
              j = i;
          }
  
@@ -35,10 +53,36 @@
 -            throw new IllegalArgumentException("Data value id is too big with " + i + "! (Max is " + 254 + ")");
 -        }
 -
-         if (this.entries.containsKey(i)) {
+-        if (this.entries.containsKey(i)) {
++        if (i < this.entries.length && this.entries[i] != null) {
              throw new IllegalArgumentException("Duplicate id value for " + i + "!");
          }
-@@ -147,7 +142,7 @@
+ 
+@@ -92,7 +89,11 @@
+     private <T> void setEntry(DataParameter<T> key, T value) {
+         EntityDataManager.DataEntry<T> dataentry = new EntityDataManager.DataEntry<>(key, value);
+         this.lock.writeLock().lock();
+-        this.entries.put(key.getId(), dataentry);
++        int id = key.getId();
++        if (id >= this.entries.length) {
++            this.entries = Arrays.copyOf(this.entries, Math.max(id + 1, this.entries.length * 2));
++        }
++        this.entries[id] = dataentry;
+         this.empty = false;
+         this.lock.writeLock().unlock();
+     }
+@@ -102,7 +103,9 @@
+ 
+         EntityDataManager.DataEntry<T> dataentry;
+         try {
+-            dataentry = (EntityDataManager.DataEntry<T>)this.entries.get(key.getId());
++            int id = key.getId();
++            EntityDataManager.DataEntry<?>[] all = this.entries;
++            dataentry = id < all.length ? (EntityDataManager.DataEntry<T>)all[id] : null;
+         } catch (Throwable throwable) {
+             CrashReport crashreport = CrashReport.makeCrashReport(throwable, "Getting synched entity data");
+             CrashReportCategory crashreportcategory = crashreport.makeCategory("Synched entity data");
+@@ -147,7 +150,7 @@
              }
          }
  
@@ -47,7 +91,30 @@
      }
  
      @Nullable
-@@ -182,7 +177,7 @@
+@@ -156,7 +159,11 @@
+         if (this.dirty) {
+             this.lock.readLock().lock();
+ 
+-            for (EntityDataManager.DataEntry<?> dataentry : this.entries.values()) {
++            for (EntityDataManager.DataEntry<?> dataentry : this.entries) {
++                if (dataentry == null) {
++                    continue;
++                }
++
+                 if (dataentry.isDirty()) {
+                     dataentry.setDirty(false);
+                     if (list == null) {
+@@ -177,12 +184,16 @@
+     public void writeEntries(PacketBuffer buf) throws IOException {
+         this.lock.readLock().lock();
+ 
+-        for (EntityDataManager.DataEntry<?> dataentry : this.entries.values()) {
++        for (EntityDataManager.DataEntry<?> dataentry : this.entries) {
++            if (dataentry == null) {
++                continue;
++            }
++
+             writeEntry(buf, dataentry);
          }
  
          this.lock.readLock().unlock();
@@ -56,7 +123,20 @@
      }
  
      @Nullable
-@@ -209,7 +204,7 @@
+@@ -190,7 +201,11 @@
+         List<EntityDataManager.DataEntry<?>> list = null;
+         this.lock.readLock().lock();
+ 
+-        for (EntityDataManager.DataEntry<?> dataentry : this.entries.values()) {
++        for (EntityDataManager.DataEntry<?> dataentry : this.entries) {
++            if (dataentry == null) {
++                continue;
++            }
++
+             if (list == null) {
+                 list = Lists.newArrayList();
+             }
+@@ -209,7 +224,7 @@
              throw new EncoderException("Unknown serializer type " + dataparameter.getSerializer());
          }
  
@@ -65,7 +145,7 @@
          buf.writeVarInt(i);
          dataparameter.getSerializer().write(buf, entry.getValue());
      }
-@@ -219,7 +214,7 @@
+@@ -219,7 +234,7 @@
          List<EntityDataManager.DataEntry<?>> list = null;
  
          int i;
@@ -74,7 +154,7 @@
              if (list == null) {
                  list = Lists.newArrayList();
              }
-@@ -230,7 +225,7 @@
+@@ -230,7 +245,7 @@
                  throw new DecoderException("Unknown serializer type " + j);
              }
  
@@ -83,3 +163,26 @@
          }
  
          return list;
+@@ -241,7 +256,8 @@
+         this.lock.writeLock().lock();
+ 
+         for (EntityDataManager.DataEntry<?> dataentry : entriesIn) {
+-            EntityDataManager.DataEntry<?> dataentry1 = this.entries.get(dataentry.getKey().getId());
++            int id = dataentry.getKey().getId();
++            EntityDataManager.DataEntry<?> dataentry1 = id >= 0 && id < this.entries.length ? this.entries[id] : null;
+             if (dataentry1 != null) {
+                 this.setEntryValue(dataentry1, dataentry);
+                 this.entity.notifyDataManagerChange(dataentry.getKey());
+@@ -265,7 +281,11 @@
+         this.dirty = false;
+         this.lock.readLock().lock();
+ 
+-        for (EntityDataManager.DataEntry<?> dataentry : this.entries.values()) {
++        for (EntityDataManager.DataEntry<?> dataentry : this.entries) {
++            if (dataentry == null) {
++                continue;
++            }
++
+             dataentry.setDirty(false);
+         }
+ 

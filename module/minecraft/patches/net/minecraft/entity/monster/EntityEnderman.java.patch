@@ -1,6 +1,26 @@
 --- original/net/minecraft/entity/monster/EntityEnderman.java
 +++ modified/net/minecraft/entity/monster/EntityEnderman.java
-@@ -267,7 +267,10 @@
+@@ -156,7 +156,8 @@
+         super.writeEntityToNBT(compound);
+         IBlockState iblockstate = this.getHeldBlockState();
+         if (iblockstate != null) {
+-            compound.setShort("carried", (short)Block.getIdFromBlock(iblockstate.getBlock()));
++            ResourceLocation carriedName = Block.REGISTRY.getNameForObject(iblockstate.getBlock()); // Cleanroom: by name, a short id truncates wide block ids
++            compound.setString("carried", carriedName == null ? "minecraft:air" : carriedName.toString());
+             compound.setShort("carriedData", (short)iblockstate.getBlock().getMetaFromState(iblockstate));
+         }
+     }
+@@ -167,7 +168,8 @@
+         super.readEntityFromNBT(compound);
+         IBlockState iblockstate;
+         if (compound.hasKey("carried", 8)) {
+-            iblockstate = Block.getBlockFromName(compound.getString("carried")).getStateFromMeta(compound.getShort("carriedData") & 65535);
++            Block carried = Block.getBlockFromName(compound.getString("carried")); // Cleanroom: null if the block's mod was removed
++            iblockstate = carried == null ? null : carried.getStateFromMeta(compound.getShort("carriedData") & 65535);
+         } else {
+             iblockstate = Block.getBlockById(compound.getShort("carried")).getStateFromMeta(compound.getShort("carriedData") & 65535);
+         }
+@@ -267,7 +269,10 @@
  
      /** Teleport the enderman */
      private boolean teleportTo(double x, double y, double z) {
@@ -12,7 +32,7 @@
          if (flag) {
              this.world
                  .playSound(null, this.prevPosX, this.prevPosY, this.prevPosZ, SoundEvents.ENTITY_ENDERMEN_TELEPORT, this.getSoundCategory(), 1.0F, 1.0F);
-@@ -346,6 +349,16 @@
+@@ -346,6 +351,16 @@
          }
      }
  
@@ -29,7 +49,7 @@
      public boolean isScreaming() {
          return this.dataManager.get(SCREAMING);
      }
-@@ -473,7 +486,7 @@
+@@ -473,7 +488,7 @@
              if (this.enderman.getHeldBlockState() == null) {
                  return false;
              } else {
@@ -38,7 +58,7 @@
                      ? false
                      : this.enderman.getRNG().nextInt(2000) == 0;
              }
-@@ -491,7 +504,16 @@
+@@ -491,7 +506,16 @@
              IBlockState iblockstate = world.getBlockState(blockpos);
              IBlockState iblockstate1 = world.getBlockState(blockpos.down());
              IBlockState iblockstate2 = this.enderman.getHeldBlockState();
@@ -56,7 +76,7 @@
                  world.setBlockState(blockpos, iblockstate2, 3);
                  this.enderman.setHeldBlockState(null);
              }
-@@ -521,7 +543,7 @@
+@@ -521,7 +545,7 @@
              if (this.enderman.getHeldBlockState() != null) {
                  return false;
              } else {
